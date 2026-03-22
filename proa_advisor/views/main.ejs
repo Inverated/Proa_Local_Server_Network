@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<%- include('header', { title: "Home" }) %>
+
+    <body class="hold-transition sidebar-mini layout-fixed">
+        <div class="wrapper">
+            <%- include('navbar') %>
+            <%- include('sidebar') %>
+                    <div class="content-wrapper">
+                        <div class="content-header">
+                            <div class="container-fluid">
+                                <div class="row mb-2">
+                                    <div class="col-sm-6">
+                                        <h1 class="m-0">Solar Proa Advisory System</h1>
+                                    </div>
+                                    <div class="col-sm-6">
+                                        <ol class="breadcrumb float-sm-right">
+                                            <li class="breadcrumb-item"><a href="/">Home</a></li>
+                                        </ol>
+                                    </div>
+                                </div>
+                                <!-- Main content -->
+                                <section class="content">
+                                    <div class="container-fluid">
+                                        <div class="row">
+                                            <div class="col-md-6">
+
+                                                <div class="card">
+                                                    <div class="card-header">
+                                                        <h3 class="card-title">Connected Devices</h3>
+                                                    </div>
+                                                    <!-- /.card-header -->
+                                                    <div class="card-body">
+                                                        <table id="esp-table" class="table table-bordered">
+                                                            <thead>
+                                                                <tr>
+                                                                    <th>#</th>
+                                                                    <th>ESP MAC Address</th>
+                                                                    <th>Sensor Type</th>
+                                                                    <th>Status</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="info-box shadow-none">
+                                                    <div class="info-box-icon bg-none">
+                                                        <input type="text" data-fgColor="red" class="knob"
+                                                            data-readonly="true" value="30" data-width="60"
+                                                            data-height="60">
+                                                    </div>
+                                                    <div class="info-box-content">
+                                                        <span class="info-box-text">Battery Level</span>
+                                                        <span class="info-box-number">Time remaining to empty: </span>
+                                                    </div>
+                                                    <!-- /.info-box-content -->
+                                                </div>
+                                                <!-- /.info-box -->
+                                            </div>
+                                        </div>
+
+                                    </div>
+
+                                </section>
+
+                            </div>
+                        </div>
+                    </div>
+        </div>
+        <%- include('footer') %>
+            <%- include('script') %>
+                <script>
+                    $(function () {
+                        $("#esp-table").DataTable({
+                            "responsive": true, "autoWidth": false, 'lengthChange': false, "searching": false,
+                            "ordering": true, "info": true,
+                            "buttons": ["copy", "csv", "pdf"]
+                        }).buttons().container().appendTo('#esp-table_wrapper .col-md-6:eq(0)');
+                    });
+
+                    
+                </script>
+    </body>
+
+</html>

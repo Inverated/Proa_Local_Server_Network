@@ -1,0 +1,21 @@
+{
+  "name": "proa_advisor",
+  "version": "1.0.0",
+  "description": "Pilot Advisory System for Proa",
+  "license": "ISC",
+  "author": "Kor Qian Fu",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "server": "nodemon index.js"
+  },
+  "dependencies": {
+    "body-parser": "^2.2.2",
+    "bootstrap": "^5.3.8",
+    "ejs": "^5.0.1",
+    "express": "^5.2.1",
+    "mongodb": "^7.1.0",
+    "nodemon": "^3.1.14"
+  }
+}
