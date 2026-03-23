@@ -14,6 +14,8 @@ app.use(bodyParser.json());
 app.use(express.static('public'));
 app.set("view engine", "ejs")
 
+const { startSerialReader } = require('./lib/serialReader');
+startSerialReader();
 
 app.get("/", (req, res) => {
     res.render("main", {
