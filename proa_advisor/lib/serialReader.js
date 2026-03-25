@@ -17,6 +17,7 @@ async function findJsonPort(baudRate = 115200, timeoutMs = 2000) {
         const found = await new Promise((resolve) => {
             const port = new SerialPort({ path: portInfo.path, baudRate, autoOpen: false });
 
+            // Rmb to open first before scanning for serial output
             port.open((err) => {
                 if (err) {
                     console.warn(`  Could not open ${portInfo.path}: ${err.message}`);
@@ -38,21 +39,25 @@ async function findJsonPort(baudRate = 115200, timeoutMs = 2000) {
                     if (port.isOpen) port.close();
                 }
 
+                // Start listening for data
                 parser.on('data', (line) => {
                     try {
-                        console.log(line);
                         const data = JSON.parse(line.trim());
                         console.log(`Found JSON on ${portInfo.path}:`, data);
                         clearTimeout(timeout);
+                        // Stop listening for more data/errors since we found our port
+                        // Keep port open (Dont run cleanup())
                         parser.removeAllListeners('data');
                         port.removeAllListeners('error');
-                        // Resolve with the open port so we can keep using it
+
+                        // Resolve (Returns) with the open port so we can keep using it
                         resolve({ port, parser, path: portInfo.path });
                     } catch {
                         // Not JSON
                     }
                 });
 
+                // Listen for errors from the port (e.g. permission issues, disconnects)
                 port.on('error', (err) => {
                     console.warn(`  Error on ${portInfo.path}: ${err.message}`);
                     cleanup();
@@ -85,9 +90,20 @@ async function startSerialReader() {
         try {
             const data = JSON.parse(line.trim());
             console.log('Data:', data);
+            /*
+                incoming data format:
+                {
+                    "stationMacAddr": "Mac address of the esp connected to the pi",
+                    "transmittorMacAddr": "Mac address of the esp sending the data",
+                    "role": "What the esp do (Can have multiple esp with same role",
+                    other data fields sent by the esp (e.g. voltage, current, power, etc...)
+                }
+            */
+
             // TODO: save to MongoDB here
+
         } catch {
-            // Ignore non-JSON lines (ESP boot messages, etc.)
+            // Ignore non-JSON lines (ESP boot messages)
         }
     });
 

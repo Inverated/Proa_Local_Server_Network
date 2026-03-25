@@ -10,6 +10,7 @@ void setup() {
 void loop() {
   // put your main code here, to run repeatedly:
   StaticJsonDocument<300> doc;
+  String test = WiFi.macAddress();
   doc["macaddress"] = WiFi.macAddress();
   doc["role"] = "Power Tracker";
   

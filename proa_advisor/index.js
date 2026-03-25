@@ -30,9 +30,6 @@ app.get("/power_management", (req, res) => {
 });
 
 
-
-
-
 app.listen(port, () => {
     console.log(`Listening at http://localhost:${port}`);
 });
