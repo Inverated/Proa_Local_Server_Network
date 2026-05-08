@@ -4,6 +4,7 @@ const app = express();
 const port = 4000;
 
 const bodyParser = require("body-parser");
+const { connectDB } = require("./model/db");
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));

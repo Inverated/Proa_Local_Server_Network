@@ -5,7 +5,7 @@ async function findJsonPort(baudRate = 115200, timeoutMs = 2000) {
     const portList = await SerialPort.list();
 
     if (portList.length === 0) {
-        console.log('No serial ports found.');
+        console.log('No connected serial ports found.');
         return null;
     }
 
