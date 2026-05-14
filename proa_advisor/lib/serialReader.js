@@ -1,7 +1,9 @@
 const { SerialPort } = require('serialport');
 const { ReadlineParser } = require('@serialport/parser-readline');
 
-async function findJsonPort(baudRate = 115200, timeoutMs = 2000) {
+async function findJsonPort(baudRate = 921600, timeoutMs = 2000) {
+    // Get the list of ports for the device
+    // Ports only show up when something is connected, so need to re-fetch the list
     const portList = await SerialPort.list();
 
     if (portList.length === 0) {
@@ -27,7 +29,7 @@ async function findJsonPort(baudRate = 115200, timeoutMs = 2000) {
                 const parser = port.pipe(new ReadlineParser({ delimiter: '\n' }));
 
                 const timeout = setTimeout(() => {
-                    cleanup();
+                    cleanup();      // Stop listening for data/errors since we timed out
                     resolve(null);
                 }, timeoutMs);
 
@@ -35,7 +37,7 @@ async function findJsonPort(baudRate = 115200, timeoutMs = 2000) {
                     clearTimeout(timeout);
                     parser.removeAllListeners('data');
                     port.removeAllListeners('error');
-                    // Close only if we are NOT keeping this port open
+                    // Close only if we are not keeping this port open to reuse when found
                     if (port.isOpen) port.close();
                 }
 
@@ -44,7 +46,14 @@ async function findJsonPort(baudRate = 115200, timeoutMs = 2000) {
                     try {
                         const data = JSON.parse(line.trim());
                         console.log(`Found JSON on ${portInfo.path}:`, data);
+
+                        if (!data.stationMacAddr) {
+                            console.log("  JSON does not have 'stationMacAddr', ignoring...");
+                            return; // 
+                        }
+
                         clearTimeout(timeout);
+
                         // Stop listening for more data/errors since we found our port
                         // Keep port open (Dont run cleanup())
                         parser.removeAllListeners('data');
@@ -77,8 +86,8 @@ async function startSerialReader() {
     const result = await findJsonPort();
 
     if (!result) {
-        console.log('Retrying in 5 seconds...');
-        setTimeout(startSerialReader, 5000);
+        console.log('Retrying in 3 seconds...');
+        setTimeout(startSerialReader, 3000);
         return;
     }
 
