@@ -1,0 +1,1 @@
+Only show up for mobile / small view
