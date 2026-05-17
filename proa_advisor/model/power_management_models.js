@@ -25,11 +25,13 @@ function initializeDatabase() {
                 adcReading3 INTEGER NOT NULL,
                 adcReading4 INTEGER NOT NULL,
                 adcReading5 INTEGER NOT NULL,
+                adcReading6 INTEGER NOT NULL,
                 current1 REAL NOT NULL,
                 current2 REAL NOT NULL,
                 current3 REAL NOT NULL,
                 current4 REAL NOT NULL,
-                voltage REAL NOT NULL
+                voltage1 REAL NOT NULL,
+                voltage2 REAL NOT NULL
         )`, (err) => {
             if (err) {
                 console.error('Error creating SOCSensor table:', err.message);
@@ -44,7 +46,8 @@ function initializeDatabase() {
                 adc2Offset INTEGER NOT NULL,
                 adc3Offset INTEGER NOT NULL,
                 adc4Offset INTEGER NOT NULL,
-                adc5Offset INTEGER NOT NULL
+                adc5Offset INTEGER NOT NULL,
+                adc6Offset INTEGER NOT NULL
         )`, (err) => {
             if (err) {
                 console.error('Error creating SOCLastOffset table:', err.message);
@@ -79,8 +82,6 @@ function initializeDatabase() {
             )`, (err) => {
             if (err) {
                 console.error('Error creating MainRCMapping table:', err.message);
-            } else {
-                insertBatteryState();
             }
         });
 
@@ -98,7 +99,6 @@ function initializeDatabase() {
             )`, (err) => {
             if (err) {
                 console.error('Error creating AlternateRCMapping table:', err.message);
-            } else {
             }
         })
     });
@@ -133,12 +133,12 @@ function insertBulkBatteryState(batch, tableName='MainRCMapping') {
 }
 
 
-function insertBatteryState() {
-    main_rc_path = './model/battery_model/LiNMC/battery_state.csv';
-    batch = [];
-    batch_size = 2000;
-    inserted = 0;
-    fs.createReadStream(main_rc_path)
+function insertBatteryState(battery_type = 'LiNMC', tableName = 'MainRCMapping') {
+    const rc_path = "./model/battery_model/" + battery_type + "/battery_state.csv";
+    let batch = [];
+    const batch_size = 2000;
+    let inserted = 0;
+    fs.createReadStream(rc_path)
         .pipe(csv())
         .on('data', (row) => {
             const { SoC, R0, R1, R2, C1, C2, A1, A2, OCV } = row;
@@ -154,21 +154,21 @@ function insertBatteryState() {
                 parseFloat(OCV)
             ]);
             if (batch.length >= batch_size) {
-                inserted += insertBulkBatteryState(batch, 'MainRCMapping');
+                inserted += insertBulkBatteryState(batch, tableName);
                 batch = [];
             }
         })
         .on('end', () => {
-            console.log(`${main_rc_path} successfully processed`);
             if (batch.length > 0) {
-                inserted += insertBulkBatteryState(batch, 'MainRCMapping');
+                inserted += insertBulkBatteryState(batch, tableName);
             }
-            console.log(`Total inserted records: ${inserted}`);
+            console.log(`Total inserted records: ${inserted} into ${tableName}`);
         });
 }
 
 
 module.exports = {
     db,
-    initializeDatabase
+    initializeDatabase,
+    insertBatteryState
 };

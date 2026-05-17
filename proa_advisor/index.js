@@ -10,7 +10,8 @@ app.use(express.urlencoded({ extended: true }));
 const { startSerialReader } = require('./lib/serialReader');
 //startSerialReader();
 
-const { db } = require('./model/models');
+const { db, insertBatteryState } = require('./model/power_management_models');
+insertBatteryState("LiNMC", "MainRCMapping");
 
 app.get("/", (req, res) => {
     res.send("Hello World!");

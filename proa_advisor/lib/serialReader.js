@@ -105,9 +105,13 @@ async function startSerialReader() {
                     "stationMacAddr": "Mac address of the esp connected to the pi",
                     "transmittorMacAddr": "Mac address of the esp sending the data",
                     "role": "What the esp do (Can have multiple esp with same role",
-                    other data fields sent by the esp (e.g. voltage, current, power, etc...)
+                    "values": other data fields sent by the esp (e.g. voltage, current, power, etc...)
                 }
             */
+            incomingData = data.values;
+            if (data.role == "power") {
+
+            }
 
             // TODO: save to MongoDB here
 
