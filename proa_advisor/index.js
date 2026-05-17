@@ -3,17 +3,14 @@ const express = require("express");
 const app = express();
 const port = 4000;
 
-const bodyParser = require("body-parser");
-const { connectDB } = require("./model/db");
-
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-app.use(bodyParser.urlencoded({ extended: false }));
-app.use(bodyParser.json());
-
+// Start async serial reader
 const { startSerialReader } = require('./lib/serialReader');
-startSerialReader();
+//startSerialReader();
+
+const { db } = require('./model/models');
 
 app.get("/", (req, res) => {
     res.send("Hello World!");
