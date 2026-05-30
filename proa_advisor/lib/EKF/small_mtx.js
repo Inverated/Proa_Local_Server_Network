@@ -54,9 +54,24 @@ function add_mtx(A, rowsA, colsA, B, rowsB, colsB) {
     return result;
 }
 
+function sub_mtx(A, rowsA, colsA, B, rowsB, colsB) {
+    if (rowsA !== rowsB || colsA !== colsB) {   
+        throw new Error("Incompatible matrix dimensions for subtraction");
+    }
+
+    const result = new Float32Array(rowsA * colsA);
+    for (let i = 0; i < rowsA; i++) {
+        for (let j = 0; j < colsA; j++) {
+            result[i * colsA + j] = A[i * colsA + j] - B[i * colsB + j];
+        }
+    }
+    return result;
+}
+
 module.exports = {
     mul_mtx,
     inv_mtx2x2,
     transpose_mtx,
-    add_mtx
+    add_mtx,
+    sub_mtx
 };

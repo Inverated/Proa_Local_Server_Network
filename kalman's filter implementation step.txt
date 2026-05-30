@@ -1,0 +1,235 @@
+Step 0 — Data Required Before Starting
+LOOKUP TABLES (from characterisation):
+    soc_points[]   — e.g. [0.10, 0.20, ... 0.90]
+    ocv_table[]    — OCV at each SoC point
+    r0_table[]     — R0 at each SoC point
+    r1_table[]     — R1 at each SoC point
+    r2_table[]     — R2 at each SoC point
+    tau1_table[]   — τ1 at each SoC point
+    tau2_table[]   — τ2 at each SoC point
+
+FIXED CONSTANTS:
+    Q_total        — battery capacity in Ampere-seconds
+    sigma_v        — voltage measurement noise (std dev in Volts)
+    sigma_i        — current sensor noise (std dev in Amps)
+    sigma_kcl      — KCL residual noise (std dev in Amps)
+
+Step 1 — Initialisation (Run Once)
+FUNCTION initialise():
+
+    --- State vector ---
+    x[0] = SoC_initial        from OCV lookup at rested terminal voltage
+    x[1] = V_RC1 = 0          assume fully rested at startup
+    x[2] = V_RC2 = 0
+
+    --- Error covariance matrix P (3x3) ---
+    P[0,0] = (0.05)^2         5% initial SoC uncertainty
+    P[1,1] = (0.005)^2        small V_RC1 uncertainty
+    P[2,2] = (0.005)^2        small V_RC2 uncertainty
+    P[0,1] = P[1,0] = 0       no initial cross-correlation
+    P[0,2] = P[2,0] = 0
+    P[1,2] = P[2,1] = 0
+
+    --- Process noise matrix Q (3x3, diagonal) ---
+    Q[0,0] = (sigma_i × Δt_nominal / Q_total)^2
+    Q[1,1] = (0.001)^2        model uncertainty for V_RC1
+    Q[2,2] = (0.001)^2        model uncertainty for V_RC2
+    all off-diagonal = 0
+
+    --- Measurement noise matrix R (2x2, diagonal) ---
+    R[0,0] = sigma_v^2        voltage measurement noise
+    R[1,1] = sigma_kcl^2      KCL residual noise
+
+    --- Record start time ---
+    t_last = current_time()
+
+    RETURN x, P, Q, R, t_last
+
+Step 2 — Parameter Lookup (Every Step)
+FUNCTION get_params(SoC):
+
+    --- Interpolate all parameters from lookup tables ---
+    OCV  = interpolate(soc_points, ocv_table,  SoC)
+    R0   = interpolate(soc_points, r0_table,   SoC)
+    R1   = interpolate(soc_points, r1_table,   SoC)
+    R2   = interpolate(soc_points, r2_table,   SoC)
+    tau1 = interpolate(soc_points, tau1_table, SoC)
+    tau2 = interpolate(soc_points, tau2_table, SoC)
+
+    RETURN OCV, R0, R1, R2, tau1, tau2
+
+Step 3 — Predict Step (Every Sample)
+FUNCTION predict(x, P, Q, I, t_now, t_last):
+
+    --- Measure actual elapsed time ---
+    Δt = t_now - t_last           use real elapsed time not assumed fixed
+
+    --- Get current parameters at current SoC estimate ---
+    OCV, R0, R1, R2, tau1, tau2 = get_params(x[0])
+
+    --- Precompute decay factors ---
+    d1 = exp(-Δt / tau1)          RC1 decay over this interval
+    d2 = exp(-Δt / tau2)          RC2 decay over this interval
+
+    --- Propagate state ---
+    x_pred[0] = x[0] - (I × Δt) / Q_total
+                        SoC decreases as current flows
+
+    x_pred[1] = x[1] × d1 + R1 × I × (1 - d1)
+                        V_RC1 decays toward new equilibrium R1×I
+
+    x_pred[2] = x[2] × d2 + R2 × I × (1 - d2)
+                        V_RC2 decays toward new equilibrium R2×I
+
+    --- State transition Jacobian F (3x3) ---
+    F[0,0] = 1                    SoC depends on previous SoC
+    F[0,1] = 0                    SoC does not depend on V_RC1
+    F[0,2] = 0                    SoC does not depend on V_RC2
+    F[1,0] = 0                    V_RC1 does not depend on SoC
+    F[1,1] = d1                   V_RC1 depends on previous V_RC1
+    F[1,2] = 0                    V_RC1 does not depend on V_RC2
+    F[2,0] = 0                    V_RC2 does not depend on SoC
+    F[2,1] = 0                    V_RC2 does not depend on V_RC1
+    F[2,2] = d2                   V_RC2 depends on previous V_RC2
+
+    --- Propagate covariance ---
+    P_pred = F × P × F_transpose + Q
+
+    RETURN x_pred, P_pred, Δt
+
+Step 4 — Measurement and Innovation (Every Sample)
+FUNCTION compute_innovation(x_pred, I_batt, I_mppt, I_load,
+                            V_terminal_measured):
+
+    --- Get parameters at predicted SoC ---
+    OCV, R0, R1, R2, tau1, tau2 = get_params(x_pred[0])
+
+    --- Predicted terminal voltage ---
+    V_predicted = OCV - R0×I_batt - x_pred[1] - x_pred[2]
+
+    --- Predicted KCL residual (should be zero if sensors agree) ---
+    KCL_predicted = 0             ideal world — sensors perfectly agree
+
+    --- Actual measurements ---
+    z[0] = V_terminal_measured    voltage reading from ADS1115
+    z[1] = I_mppt - I_batt1      KCL residual from your 4 sensors
+               - I_batt2 + I_load
+
+    --- Predicted measurements ---
+    z_pred[0] = V_predicted
+    z_pred[1] = KCL_predicted = 0
+
+    --- Innovation — difference between real and predicted ---
+    innovation[0] = z[0] - z_pred[0]    voltage residual
+    innovation[1] = z[1] - z_pred[1]    KCL residual
+
+    RETURN innovation, OCV, R0
+
+Step 5 — Measurement Jacobian H
+FUNCTION compute_H(x_pred, OCV, params):
+
+    --- H is 2x3 matrix mapping state to measurement space ---
+
+    --- Row 0: how terminal voltage depends on each state ---
+    dV_dSoC  = dOCV_dSoC(x_pred[0])   numerical derivative of OCV table
+    dV_dRC1  = -1                       V_RC1 directly subtracts from V
+    dV_dRC2  = -1                       V_RC2 directly subtracts from V
+
+    H[0,0] = dV_dSoC
+    H[0,1] = -1
+    H[0,2] = -1
+
+    --- Row 1: how KCL residual depends on each state ---
+    --- KCL is purely a current measurement constraint      ---
+    --- it does not depend on SoC, V_RC1, or V_RC2 directly ---
+    H[1,0] = 0
+    H[1,1] = 0
+    H[1,2] = 0
+
+    NOTE: H row 1 being zero means KCL does not directly
+    correct the state — it enters through the innovation
+    and inflates P when violated, signalling sensor drift
+
+    RETURN H
+
+Step 6 — Kalman Gain and Correction
+FUNCTION update(x_pred, P_pred, innovation, H, R):
+
+    --- Innovation covariance S ---
+    S = H × P_pred × H_transpose + R
+
+    --- Kalman gain K (3x2) ---
+    K = P_pred × H_transpose × inverse(S)
+
+    --- Corrected state ---
+    x_updated = x_pred + K × innovation
+
+    --- Enforce physical limits on SoC ---
+    x_updated[0] = clip(x_updated[0], 0.0, 1.0)
+
+    --- Corrected covariance (Joseph form — numerically stable) ---
+    I_KH = identity(3) - K × H
+    P_updated = I_KH × P_pred × I_KH_transpose + K × R × K_transpose
+
+    RETURN x_updated, P_updated
+
+Step 7 — Output and Loop
+FUNCTION output(x_updated, P_updated):
+
+    SoC_percent = x_updated[0] × 100
+    V_RC1       = x_updated[1]
+    V_RC2       = x_updated[2]
+
+    SoC_uncertainty = sqrt(P_updated[0,0]) × 100   in percent
+    RC1_uncertainty = sqrt(P_updated[1,1]) × 1000  in mV
+    RC2_uncertainty = sqrt(P_updated[2,2]) × 1000  in mV
+
+    RETURN SoC_percent, SoC_uncertainty
+
+Full Loop
+INITIALISE
+    x, P, Q, R, t_last = initialise()
+
+LOOP forever:
+
+    --- Read sensors ---
+    t_now       = current_time()
+    I_batt1     = read_hall_sensor_1()
+    I_batt2     = read_hall_sensor_2()
+    I_mppt      = read_hall_sensor_3()
+    I_load      = read_hall_sensor_4()
+    V_terminal  = read_voltage_divider()
+    I_active    = I_batt1 if load_switch == 1 else I_batt2
+
+    --- PREDICT ---
+    x_pred, P_pred, Δt = predict(x, P, Q, I_active, t_now, t_last)
+
+    --- INNOVATION ---
+    innovation, OCV, R0 = compute_innovation(
+        x_pred, I_active, I_mppt, I_load, V_terminal)
+
+    --- CHECK KCL ---
+    if abs(innovation[1]) > 3 × sigma_kcl:
+        Q[0,0] × = 2        inflate process noise — sensor drift suspected
+        flag sensor warning
+
+    --- JACOBIAN ---
+    H = compute_H(x_pred, OCV)
+
+    --- UPDATE ---
+    x, P = update(x_pred, P_pred, innovation, H, R)
+
+    --- OUTPUT ---
+    SoC, uncertainty = output(x, P)
+
+    --- PREPARE NEXT ITERATION ---
+    t_last = t_now
+
+    --- WAIT for next sensor reading ---
+    wait until next sample available
+    no fixed sleep needed — Δt measured directly each loop
+
+Key Points From the Pseudo Code
+The EKF state transition matrix F is almost trivial for this model — it is diagonal with only d1 and d2 as non-unity terms because the three states evolve independently of each other.
+The measurement Jacobian H has a zero second row because the KCL constraint is a current-domain measurement that has no direct algebraic relationship to the voltage-domain states. Its value is indirect — large KCL innovations inflate Q rather than directly correcting x.
+Δt appears in three places — the SoC propagation, the RC decay factors d1 and d2, and implicitly in Q[0,0] if you scale process noise with time. All three must use the same measured Δt for the filter to be self-consistent
