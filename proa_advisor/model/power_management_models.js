@@ -37,19 +37,16 @@ function initializeDatabase() {
             CREATE TABLE IF NOT EXISTS SOCSensor (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-                timeSinceSensorStart INTEGER NOT NULL,
+                run_id INTEGER NOT NULL,
+                time_diff INTEGER NOT NULL,
+                adcReading0 INTEGER NOT NULL,
                 adcReading1 INTEGER NOT NULL,
                 adcReading2 INTEGER NOT NULL,
                 adcReading3 INTEGER NOT NULL,
                 adcReading4 INTEGER NOT NULL,
                 adcReading5 INTEGER NOT NULL,
                 adcReading6 INTEGER NOT NULL,
-                current1 REAL NOT NULL,
-                current2 REAL NOT NULL,
-                current3 REAL NOT NULL,
-                current4 REAL NOT NULL,
-                voltage1 REAL NOT NULL,
-                voltage2 REAL NOT NULL
+                adcReading7 INTEGER NOT NULL
         )`, (err) => {
             if (err) {
                 console.error('Error creating SOCSensor table:', err.message);
@@ -59,31 +56,13 @@ function initializeDatabase() {
         });
 
         db.run(`
-            CREATE TABLE IF NOT EXISTS SOCLastOffset (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-                adc1Offset INTEGER NOT NULL,
-                adc2Offset INTEGER NOT NULL,
-                adc3Offset INTEGER NOT NULL,
-                adc4Offset INTEGER NOT NULL,
-                adc5Offset INTEGER NOT NULL,
-                adc6Offset INTEGER NOT NULL
-        )`, (err) => {
-            if (err) {
-                console.error('Error creating SOCLastOffset table:', err.message);
-            } else {
-                tables_initialized.SOCLastOffset = true;
-            }
-        });
-
-        db.run(`
             CREATE TABLE IF NOT EXISTS BatteryState (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-                SoC REAL NOT NULL,
-                v_rc1 REAL NOT NULL,
-                v_rc2 REAL NOT NULL,
-                err_cov BLOB NOT NULL
+                run_id INTEGER NOT NULL,
+                state_vector BLOB NOT NULL,
+                covariance_matrix BLOB NOT NULL,
+                process_noise BLOB NOT NULL
             )`, (err) => {
             if (err) {
                 console.error('Error creating BatteryState table:', err.message);

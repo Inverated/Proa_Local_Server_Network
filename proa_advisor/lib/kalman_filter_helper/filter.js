@@ -1,6 +1,6 @@
 const { load_battery_constants, soc_to_index } = require('./helper');
 const { add_mtx, sub_mtx, inv_mtx2x2, mul_mtx, transpose_mtx } = require('./small_mtx');
-const { getBatteryRC_SoC, getBatteryRC_OCV, getLastBatteryState, insertBatteryState, insertSocLastOffset, insertSocSensorData, insertSocSensorDataBulk } = require('../../model/db');
+const { getBatteryRC_SoC, getBatteryRC_OCV } = require('../../model/db');
 
 /*
 Sensor placement:
@@ -55,7 +55,7 @@ function get_SoC_process_noise(battery_role, time_diff) {
     return (sigma_i * time_diff / q_total) ** 2;
 }
 
-async function initialise_filter(battery_role, initial_voltage, initial_time_ms) {
+async function initialise_filter(battery_role, initial_voltage) {
     // Initial time is based on esp32 startup timing
     if (battery_role != "main" && battery_role !== "alternate") {
         throw new Error("Invalid battery type. Must be 'main' or 'alternate' role.");
@@ -112,7 +112,7 @@ async function initialise_filter(battery_role, initial_voltage, initial_time_ms)
     console.log(`Initialised ${battery_role} battery filter with SoC: ${state_vector[0]}`);
 }
 
-async function predict_state(battery_role, current, time_diff_us){
+async function predict_state(battery_role, battery_current, time_diff_us){
     const values = battery_role === "main" ? main_battery_values : alternate_battery_values;
 
     const time_diff = time_diff_us / 1e6;   // Convert us to s
@@ -132,9 +132,9 @@ async function predict_state(battery_role, current, time_diff_us){
     const d2 = Math.exp(-time_diff / Tau2);
 
     // Propage to next state
-    state_vector[0] -= (-current * time_diff) / (values.battery_constants.Q_total * 3600);
-    state_vector[1] = state_vector[1] * d1 + (1 - d1) * current * R1;
-    state_vector[2] = state_vector[2] * d2 + (1 - d2) * current * R2;
+    state_vector[0] -= (-battery_current * time_diff) / (values.battery_constants.Q_total * 3600);
+    state_vector[1] = state_vector[1] * d1 + (1 - d1) * battery_current * R1;
+    state_vector[2] = state_vector[2] * d2 + (1 - d2) * battery_current * R2;
     values.state_vector.set(state_vector);
 
     const state_transition = new Float32Array(9); // Intermediate value, do not need to store
@@ -166,7 +166,7 @@ async function predict_state(battery_role, current, time_diff_us){
 async function compute_innovation(battery_role, rc_value, I_batt_main, I_batt_alternate, I_mppt, I_load, V_terminal) {
     const values = battery_role === "main" ? main_battery_values : alternate_battery_values;
 
-    const { OCV, R0, R1, R2, Tau1, Tau2 } = rc_values;
+    const { OCV, R0, R1, R2, Tau1, Tau2 } = rc_value;
 
     // Predicted measurements: V_predicted = OCV - R0×I_batt - x_pred[1] - x_pred[2]
     const batt_current = battery_role === "main" ? I_batt_main : I_batt_alternate;
@@ -216,10 +216,13 @@ async function compute_measurement_jacobian(battery_role) {
     return H;
 }
 
-async function update(battery_role, I_batt_main, I_batt_alternate, I_mppt, I_load, V_terminal) {
+async function update(battery_role, time_diff_us, I_batt_main, I_batt_alternate, I_mppt, I_load, V_terminal) {
     // H: measurement jacobian; R: measurement noise covariance; x_pred: predicted state vector; P_pred: predicted covariance matrix
     const values = battery_role === "main" ? main_battery_values : alternate_battery_values;
 
+    const battery_current = battery_role === "main" ? I_batt_main : I_batt_alternate;
+    const rc_value = await predict_state(battery_role, battery_current, time_diff_us);
+    
     const x_pred = values.state_vector;
     const P_pred = values.covariance_matrix;
     const H = await compute_measurement_jacobian(battery_role);
@@ -237,7 +240,7 @@ async function update(battery_role, I_batt_main, I_batt_alternate, I_mppt, I_loa
     let K               = mul_mtx(P_predxH_t, 3, 2, S_inv, 2, 2); 
 
     // Updated state: x_updated = x_pred + K × innovation
-    let innovation       = await compute_innovation(battery_role, I_batt_main, I_batt_alternate, I_mppt, I_load, V_terminal);
+    let innovation       = await compute_innovation(battery_role, rc_value, I_batt_main, I_batt_alternate, I_mppt, I_load, V_terminal);
     let KxInnovation    = mul_mtx(K, 3, 2, innovation, 2, 1);
     let x_updated       = add_mtx(x_pred, 3, 1, KxInnovation, 3, 1);
 
@@ -265,15 +268,13 @@ async function update(battery_role, I_batt_main, I_batt_alternate, I_mppt, I_loa
     // Store updated state and covariance
     values.state_vector.set(x_updated);
     values.covariance_matrix.set(P_updated);
-}
 
+    return [values.state_vector, values.covariance_matrix, values.process_noise];
+}
 
 module.exports = {
     set_main_battery,
     set_alternate_battery,
     initialise_filter,
-    predict_state,
-    compute_innovation,
-    compute_measurement_jacobian,
     update
 }
