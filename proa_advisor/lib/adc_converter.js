@@ -31,9 +31,9 @@ function adc_to_current(adc_value, range) {
     const b = 0.06268986789356691;
     const mid_pt = 32768;
     if (adc_value >= mid_pt) {
-        return (-b + (b * b + 4 * a * voltage).sqrt()) / (2 * a);
+        return (-b + Math.sqrt(b * b + 4 * a * voltage)) / (2 * a);
     } else {
-        return (-b + (b * b - 4 * a * voltage).sqrt()) / (2 * a);
+        return (-b + Math.sqrt(b * b - 4 * a * voltage)) / (2 * a);
     }
 }
 

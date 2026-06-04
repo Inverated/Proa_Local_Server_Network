@@ -6,7 +6,6 @@ const csv = require('csv-parser');
 
 const tables_initialized = {
     SOCSensor: false,
-    SOCLastOffset: false,
     BatteryState: false,
     MainRCMapping: false,
     AlternateRCMapping: false
@@ -21,19 +20,18 @@ const db = new sqlite3.Database(DB_PATH, (err) => {
     }
 });
 
-function initialiseDBifNeeded() {
+async function initialiseDBifNeeded() {
     if (Object.values(tables_initialized).every(initialized => initialized)) {
         return Promise.resolve();
     }
-    return new Promise((resolve, reject) => {
-        initializeDatabase();
-        resolve();
-    });
+       
+    await initializeDatabase();
 }
 
 function initializeDatabase() {
-    db.serialize(() => {
-        db.run(`
+    return new Promise((resolve, reject) => {
+        db.serialize(() => {
+            db.run(`
             CREATE TABLE IF NOT EXISTS SOCSensor (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -48,14 +46,15 @@ function initializeDatabase() {
                 adcReading6 INTEGER NOT NULL,
                 adcReading7 INTEGER NOT NULL
         )`, (err) => {
-            if (err) {
-                console.error('Error creating SOCSensor table:', err.message);
-            } else {
+                if (err) {
+                    console.error('Error creating SOCSensor table:', err.message);
+                    reject(err);
+                    return;
+                }
                 tables_initialized.SOCSensor = true;
-            }
-        });
+            });
 
-        db.run(`
+            db.run(`
             CREATE TABLE IF NOT EXISTS BatteryState (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -64,14 +63,15 @@ function initializeDatabase() {
                 covariance_matrix BLOB NOT NULL,
                 process_noise BLOB NOT NULL
             )`, (err) => {
-            if (err) {
-                console.error('Error creating BatteryState table:', err.message);
-            } else {
-                tables_initialized.BatteryState = true;
-            }
-        });
+                if (err) {
+                    console.error('Error creating BatteryState table:', err.message);
+                    reject(err);
+                } else {
+                    tables_initialized.BatteryState = true;
+                }
+            });
 
-        db.run(`
+            db.run(`
             CREATE TABLE IF NOT EXISTS MainRCMapping (
                 SoC REAL PRIMARY KEY,
                 R0 REAL NOT NULL,
@@ -83,14 +83,15 @@ function initializeDatabase() {
                 Tau2 REAL NOT NULL,
                 OCV REAL NOT NULL
             )`, (err) => {
-            if (err) {
-                console.error('Error creating MainRCMapping table:', err.message);
-            } else {
-                tables_initialized.MainRCMapping = true;
-            }
-        });
+                if (err) {
+                    console.error('Error creating MainRCMapping table:', err.message);
+                    reject(err);
+                } else {
+                    tables_initialized.MainRCMapping = true;
+                }
+            });
 
-        db.run(`
+            db.run(`
             CREATE TABLE IF NOT EXISTS AlternateRCMapping (
                 SoC REAL PRIMARY KEY,
                 R0 REAL NOT NULL,
@@ -102,16 +103,18 @@ function initializeDatabase() {
                 Tau2 REAL NOT NULL,
                 OCV REAL NOT NULL
             )`, (err) => {
-            if (err) {
-                console.error('Error creating AlternateRCMapping table:', err.message);
-            } else {
-                tables_initialized.AlternateRCMapping = true;
-            }
-        })
-    });
-}
+                if (err) {
+                    console.error('Error creating AlternateRCMapping table:', err.message);
+                    reject(err);
+                } else {
+                    tables_initialized.AlternateRCMapping = true;
+                }
+            });
+        });
+    })
+};
 
-function insertBulkBatteryState(batch, tableName='MainRCMapping') {
+function insertBulkBatteryState(batch, tableName = 'MainRCMapping') {
     const placeholders = batch.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ');
     const flatValues = batch.flat();
     const sql = `INSERT INTO ${tableName} (SoC, R0, R1, R2, C1, C2, Tau1, Tau2, OCV) VALUES ${placeholders}
@@ -145,6 +148,7 @@ function insertBatteryState(battery_type = 'LiNMC', tableName = 'MainRCMapping')
     let batch = [];
     const batch_size = 2000;
     let inserted = 0;
+    
     fs.createReadStream(rc_path)
         .pipe(csv())
         .on('data', (row) => {
@@ -176,7 +180,6 @@ function insertBatteryState(battery_type = 'LiNMC', tableName = 'MainRCMapping')
 
 module.exports = {
     db,
-    initialiseDBifNeeded,
     initializeDatabase,
     insertBatteryState
 };

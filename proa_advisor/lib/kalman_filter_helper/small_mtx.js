@@ -24,10 +24,12 @@ function inv_mtx2x2(A) {
         throw new Error("Matrix is singular and cannot be inverted");
     }
     const invDet = 1 / det;
-    return [
-        [ A[1 * 2 + 1] * invDet, -A[0 * 2 + 1] * invDet],
-        [-A[1 * 2 + 0] * invDet,  A[0 * 2 + 0] * invDet]
-    ];
+    return new Float32Array([
+        A[1 * 2 + 1] * invDet,
+        -A[0 * 2 + 1] * invDet,
+        -A[1 * 2 + 0] * invDet,
+        A[0 * 2 + 0] * invDet
+    ]);
 }
 
 function transpose_mtx(A, rows, cols) {
