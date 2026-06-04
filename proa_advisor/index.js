@@ -8,13 +8,13 @@ app.use(express.urlencoded({ extended: true }));
 
 // Start async serial reader
 const { startSerialReader } = require('./lib/serialReader');
-//startSerialReader();
+startSerialReader();
 
 const { db, insertBatteryState } = require('./model/power_management_models');
 insertBatteryState(battery_type = "LiNMC", tableName = "MainRCMapping");
 
 const { run_test } = require("./lib/ekf_test")
-run_test();
+//run_test();
 
 app.get("/", (req, res) => {
     res.send("Hello World!");

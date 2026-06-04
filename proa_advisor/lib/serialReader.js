@@ -1,5 +1,6 @@
 const { SerialPort } = require('serialport');
 const { ReadlineParser } = require('@serialport/parser-readline');
+const { onNewSample } = require("./kalman_filter")
 
 async function findJsonPort(baudRate = 921600, timeoutMs = 2000) {
     // Get the list of ports for the device
@@ -82,6 +83,85 @@ async function findJsonPort(baudRate = 921600, timeoutMs = 2000) {
     return null;
 }
 
+const PACKET_BYTES = 4 + 2 + 4 + (8 * 2) + 2; // 28 bytes
+const HEADER = Buffer.from('PWER');
+const HEADER_INT = HEADER.readUInt32LE(0);
+const TIME_BETWEEN_SAMPLES_ALERT = 1000;
+
+let recvBuf = Buffer.alloc(0);
+let lastCounter = -1;
+let offsetCounter = 0;
+
+function additiveChecksum(readings, counter) {
+    let sum = counter & 0xFFFF;
+    for (let i = 0; i < readings.length; i++) {
+        sum ^= (readings[i] << (i + 1));
+    }
+    return sum % 65536;
+}
+
+function processBuffer(onNewSample) {
+    // Scan for a valid packet starting at offset 0, discard bytes until we find one
+    while (recvBuf.length >= PACKET_BYTES) {
+        // Find header
+        if (recvBuf.readUInt32LE(0) !== HEADER_INT) {
+            recvBuf = recvBuf.subarray(1); // Advance one byte to re-sync
+            continue;
+        }
+
+        // Not enough data yet for a full packet
+        if (recvBuf.length < PACKET_BYTES) break;
+
+        const counter  = recvBuf.readUInt16LE(4);
+        const timediff = recvBuf.readUInt32LE(6);
+        const readings = [];
+        for (let i = 0; i < 8; i++) {
+            readings.push(recvBuf.readUInt16LE(10 + i * 2));
+        }
+        const chksum = recvBuf.readUInt16LE(26);
+
+        if (chksum !== additiveChecksum(readings, counter)) {
+            console.warn(`Checksum fail at counter ${counter}. Re-syncing.`);
+            recvBuf = recvBuf.subarray(1);
+            continue;
+        }
+
+        // Counter realignment on 16-bit wraparound
+        let adjustedCounter = counter;
+        if (lastCounter !== -1) {
+            if (counter < lastCounter && (lastCounter - counter) > 0x7FFF) {
+                offsetCounter = (lastCounter + 1) - counter;
+            }
+        }
+        adjustedCounter = counter + offsetCounter;
+
+        if (lastCounter !== -1 && adjustedCounter !== lastCounter + 1) {
+            console.warn(`Packet loss: counter jumped from ${lastCounter} to ${adjustedCounter}`);
+        }
+
+        lastCounter = adjustedCounter;
+
+        if (timediff > TIME_BETWEEN_SAMPLES_ALERT) {
+            console.warn(`Large time gap: ${timediff} us at counter ${adjustedCounter}`);
+        }
+
+        onNewSample({
+            counter:     adjustedCounter,
+            time_diff_us: timediff,
+            a0: readings[0],
+            a1: readings[1],
+            a2: readings[2],
+            a3: readings[3],
+            a4: readings[4],
+            a5: readings[5],
+            a6: readings[6],
+            a7: readings[7],
+        });
+
+        recvBuf = recvBuf.subarray(PACKET_BYTES);
+    }
+}
+
 async function startSerialReader() {
     const result = await findJsonPort();
 
@@ -91,37 +171,20 @@ async function startSerialReader() {
         return;
     }
 
-    const { port, parser, path } = result;
+    const { port, path } = result;
     console.log(`Listening on ${path}`);
 
-    // Persistent reading — reuse the already-open port
-    parser.on('data', async (line) => {
-        try {
-            const data = JSON.parse(line.trim());
-            console.log('Data:', data);
-            /*
-                incoming data format:
-                {
-                    "stationMacAddr": "Mac address of the esp connected to the pi",
-                    "transmittorMacAddr": "Mac address of the esp sending the data",
-                    "role": "What the esp do (Can have multiple esp with same role",
-                    "values": other data fields sent by the esp (e.g. voltage, current, power, etc...)
-                }
-            */
-            incomingData = data.values;
-            if (data.role == "power") {
-
-            }
-
-            // TODO: save to MongoDB here
-
-        } catch {
-            // Ignore non-JSON lines (ESP boot messages)
-        }
+    // Use raw data events — not a line parser — since this is binary
+    port.on('data', (chunk) => {
+        recvBuf = Buffer.concat([recvBuf, chunk]);
+        processBuffer(onNewSample);
     });
 
     port.on('close', () => {
         console.warn(`Port ${path} closed. Rescanning...`);
+        recvBuf = Buffer.alloc(0); // Clear buffer on disconnect
+        lastCounter = -1;
+        offsetCounter = 0;
         setTimeout(startSerialReader, 5000);
     });
 

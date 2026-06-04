@@ -23,7 +23,7 @@ Batt 2: Alternate battery, LiFePO4, 2s1p pack, 48.0V nominal, 50Ah
 */
 
 const VOLTAGE_DIVIDER_RATIO = (100 + 20) / 20; // R1 + R2 / R2
-const SAMPLE_INTERVAL_BEFORE_WRITE = 10000; // Every 500 samples write 1 row; ard 0.5s at 1kHz sampling rate
+const SAMPLE_INTERVAL_BEFORE_WRITE = 10000;
 let data_array = [];
 let is_initialised = false;
 let sample_count = 0;
