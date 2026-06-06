@@ -2,7 +2,13 @@ const { SerialPort } = require('serialport');
 const { ReadlineParser } = require('@serialport/parser-readline');
 const { onNewSample } = require("./kalman_filter")
 
-async function findJsonPort(baudRate = 921600, timeoutMs = 2000) {
+const PACKET_BYTES = 4 + 2 + 4 + (8 * 2) + 2; // 28 bytes
+const HEADER = 'PWER';
+const HEADER_BUFFER = Buffer.from(HEADER, 'ascii');
+const HEADER_INT = HEADER_BUFFER.readUInt32LE(0);
+const TIME_BETWEEN_SAMPLES_ALERT = 5000;
+
+async function findValidPort(baudRate = 2000000, timeoutMs = 2000) {
     // Get the list of ports for the device
     // Ports only show up when something is connected, so need to re-fetch the list
     const portList = await SerialPort.list();
@@ -12,81 +18,50 @@ async function findJsonPort(baudRate = 921600, timeoutMs = 2000) {
         return null;
     }
 
-    console.log(`Scanning ${portList.length} port(s)...`);
-
     for (const portInfo of portList) {
-        console.log(`Trying ${portInfo.path}...`);
-
-        const found = await new Promise((resolve) => {
+        // Iterate through serial port
+        // Write a trigger b'START\n' to each port and wait for a valid response of "ADC READY'
+        // or if length of line == packet bytes, return that port
+        try {
             const port = new SerialPort({ path: portInfo.path, baudRate, autoOpen: false });
+            await port.open();
+            const parser = port.pipe(new ReadlineParser({ delimiter: '\n' }));
 
-            // Rmb to open first before scanning for serial output
-            port.open((err) => {
-                if (err) {
-                    console.warn(`  Could not open ${portInfo.path}: ${err.message}`);
-                    return resolve(null);
-                }
+            for (let attempt = 0; attempt <= 2; attempt++) {
+                port.write('START\n');
+                await port.drain();
 
-                const parser = port.pipe(new ReadlineParser({ delimiter: '\n' }));
-
-                const timeout = setTimeout(() => {
-                    cleanup();      // Stop listening for data/errors since we timed out
-                    resolve(null);
-                }, timeoutMs);
-
-                function cleanup() {
-                    clearTimeout(timeout);
-                    parser.removeAllListeners('data');
-                    port.removeAllListeners('error');
-                    // Close only if we are not keeping this port open to reuse when found
-                    if (port.isOpen) port.close();
-                }
-
-                // Start listening for data
-                parser.on('data', (line) => {
-                    try {
-                        const data = JSON.parse(line.trim());
-                        console.log(`Found JSON on ${portInfo.path}:`, data);
-
-                        if (!data.stationMacAddr) {
-                            console.log("  JSON does not have 'stationMacAddr', ignoring...");
-                            return; // 
-                        }
-
-                        clearTimeout(timeout);
-
-                        // Stop listening for more data/errors since we found our port
-                        // Keep port open (Dont run cleanup())
+                const line = await new Promise((resolve) => {
+                    const timeout = setTimeout(() => {
                         parser.removeAllListeners('data');
-                        port.removeAllListeners('error');
+                        resolve(null);
+                    }, timeoutMs);
 
-                        // Resolve (Returns) with the open port so we can keep using it
-                        resolve({ port, parser, path: portInfo.path });
-                    } catch {
-                        // Not JSON
-                    }
+                    parser.once('data', (data) => {
+                        clearTimeout(timeout);
+                        parser.removeAllListeners('data');
+                        resolve(data.trim());
+                    });
                 });
+                if (line && line.includes('ADC Ready')) {
+                    return { port, path: portInfo.path };
+                } else if (line && line.includes(HEADER)) {
+                    return { port, path: portInfo.path };
+                }
+                console.log(`Attempt ${attempt + 1}/3: No valid response from ${portInfo.path}`);
+            }
 
-                // Listen for errors from the port (e.g. permission issues, disconnects)
-                port.on('error', (err) => {
-                    console.warn(`  Error on ${portInfo.path}: ${err.message}`);
-                    cleanup();
-                    resolve(null);
-                });
-            });
-        });
-
-        if (found) return found; // Stop scanning once found
+            port.close();
+        }
+        catch (err) {
+            console.error(`Error testing port ${portInfo.path}: ${err.message}`);
+        }
     }
 
-    console.error('No port with JSON output found.');
+    console.log('No valid serial ports found after testing all candidates.');
     return null;
 }
 
-const PACKET_BYTES = 4 + 2 + 4 + (8 * 2) + 2; // 28 bytes
-const HEADER = Buffer.from('PWER');
-const HEADER_INT = HEADER.readUInt32LE(0);
-const TIME_BETWEEN_SAMPLES_ALERT = 1000;
 
 let recvBuf = Buffer.alloc(0);
 let lastCounter = -1;
@@ -100,7 +75,8 @@ function additiveChecksum(readings, counter) {
     return sum % 65536;
 }
 
-function processBuffer(onNewSample) {
+const queue = [];
+function processBuffer() {
     // Scan for a valid packet starting at offset 0, discard bytes until we find one
     while (recvBuf.length >= PACKET_BYTES) {
         // Find header
@@ -145,8 +121,8 @@ function processBuffer(onNewSample) {
             console.warn(`Large time gap: ${timediff} us at counter ${adjustedCounter}`);
         }
 
-        onNewSample({
-            counter:     adjustedCounter,
+        queue.push({
+            counter: adjustedCounter,
             time_diff_us: timediff,
             a0: readings[0],
             a1: readings[1],
@@ -160,10 +136,22 @@ function processBuffer(onNewSample) {
 
         recvBuf = recvBuf.subarray(PACKET_BYTES);
     }
+    consumeQueue();
+}
+let consuming = false;
+async function consumeQueue() {
+    if (consuming) return;
+    consuming = true;
+
+    while (queue.length > 0) {
+        const sample = queue.shift();
+        await onNewSample(sample);
+    }
+    consuming = false;
 }
 
 async function startSerialReader() {
-    const result = await findJsonPort();
+    const result = await findValidPort();
 
     if (!result) {
         console.log('Retrying in 3 seconds...');
@@ -177,7 +165,7 @@ async function startSerialReader() {
     // Use raw data events — not a line parser — since this is binary
     port.on('data', (chunk) => {
         recvBuf = Buffer.concat([recvBuf, chunk]);
-        processBuffer(onNewSample);
+        processBuffer();
     });
 
     port.on('close', () => {

@@ -10,8 +10,12 @@ app.use(express.urlencoded({ extended: true }));
 const { startSerialReader } = require('./lib/serialReader');
 startSerialReader();
 
-const { db, insertBatteryState } = require('./model/power_management_models');
-insertBatteryState(battery_type = "LiNMC", tableName = "MainRCMapping");
+const { startDB, insertBatteryState } = require('./model/power_management_models');
+
+startDB().then(() => {
+    insertBatteryState(battery_type = "LiNMC", tableName = "MainRCMapping");
+    insertBatteryState(battery_type = "LiNMC", tableName = "AlternateRCMapping");
+});
 
 const { run_test } = require("./lib/ekf_test")
 //run_test();

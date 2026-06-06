@@ -1,7 +1,8 @@
-const { db, initializeDatabase } = require('./power_management_models');
+const { getDB, initializeDatabase } = require('./power_management_models');
 const { soc_to_index } = require('../lib/kalman_filter_helper/helper');
 
 async function insertSocSensorData(run_id, time_diff, adcReading0, adcReading1, adcReading2, adcReading3, adcReading4, adcReading5, adcReading6, adcReading7) {
+    const db = getDB();
     db.serialize(() => {
         db.run(`
             INSERT INTO SOCSensor (run_id, time_diff, adcReading0, adcReading1, adcReading2, adcReading3, adcReading4, adcReading5, adcReading6, adcReading7)
@@ -16,6 +17,7 @@ async function insertSocSensorData(run_id, time_diff, adcReading0, adcReading1, 
 
 async function insertSocSensorDataBulk(dataArray) {
     if (!dataArray || dataArray.length === 0) return;
+    const db = getDB();
     return new Promise((resolve, reject) => {
         db.serialize(() => {
             const stmt = db.prepare(`
@@ -55,14 +57,29 @@ async function insertSocSensorDataBulk(dataArray) {
     });
 }
 
-async function insertBatteryState(run_id, state_vector, covariance_matrix, process_noise) {
+async function insertMainBatteryState(run_id, state_vector, covariance_matrix, process_noise) {
+    const db = getDB();
     db.serialize(() => {
         db.run(`
-            INSERT INTO BatteryState (run_id, state_vector, covariance_matrix, process_noise)
+            INSERT INTO MainBatteryState (run_id, state_vector, covariance_matrix, process_noise)
             VALUES (?, ?, ?, ?)
         `, [run_id, state_vector, covariance_matrix, process_noise], function (err) {
             if (err) {
-                console.error('Error inserting battery state data:', err.message);
+                console.error('Error inserting main battery state data:', err.message);
+            }
+        });
+    });
+}
+
+async function insertAlternateBatteryState(run_id, state_vector, covariance_matrix, process_noise) {
+    const db = getDB();
+    db.serialize(() => {
+        db.run(`
+            INSERT INTO AlternateBatteryState (run_id, state_vector, covariance_matrix, process_noise)
+            VALUES (?, ?, ?, ?)
+        `, [run_id, state_vector, covariance_matrix, process_noise], function (err) {
+            if (err) {
+                console.error('Error inserting alternate battery state data:', err.message);
             }
         });
     });
@@ -72,8 +89,9 @@ const persistent_main_RC = [];
 const persistent_alternate_RC = [];
 
 async function fetchAndCacheRC(tableName = "MainRCMapping") {
+    const db = getDB();
     if (tableName === "MainRCMapping") {
-        
+
         if (persistent_main_RC.length > 0) {
             return persistent_main_RC;
         }
@@ -138,13 +156,14 @@ async function getBatteryRC_OCV(voltage, factor, tableName, count = 1) {
     return sorted.slice(0, count);
 }
 
-async function getLastBatteryState() {
+async function getLastMainBatteryState() {
+    const db = getDB();
     return new Promise((resolve, reject) => {
         db.get(`
-            SELECT * FROM BatteryState ORDER BY id DESC LIMIT 1
+            SELECT * FROM MainBatteryState ORDER BY id DESC LIMIT 1
         `, [], (err, row) => {
             if (err) {
-                console.error('Error retrieving last battery state data:', err.message);
+                console.error('Error retrieving last main battery state data:', err.message);
                 reject(err);
             } else {
                 resolve(row);
@@ -153,7 +172,25 @@ async function getLastBatteryState() {
     });
 }
 
+async function getLastAlternateBatteryState() {
+    const db = getDB();
+    return new Promise((resolve, reject) => {
+        db.get(`
+            SELECT * FROM AlternateBatteryState ORDER BY id DESC LIMIT 1
+        `, [], (err, row) => {
+            if (err) {
+                console.error('Error retrieving last alternate battery state data:', err.message);
+                reject(err);
+            }
+            else {
+                resolve(row);
+            }
+        });
+    });
+}
+
 async function getRunId(time_before_new_run = 5 * 60 * 1000) { // 5 minutes
+    const db = getDB();
     return new Promise((resolve, reject) => {
         db.get(`
             SELECT run_id, timestamp FROM SOCSensor ORDER BY id DESC LIMIT 1
@@ -182,9 +219,11 @@ async function getRunId(time_before_new_run = 5 * 60 * 1000) { // 5 minutes
 module.exports = {
     insertSocSensorData,
     insertSocSensorDataBulk,
-    insertBatteryState,
+    insertMainBatteryState,
+    insertAlternateBatteryState,
     getBatteryRC_SoC,
     getBatteryRC_OCV,
-    getLastBatteryState,
+    getLastMainBatteryState,
+    getLastAlternateBatteryState,
     getRunId
 };

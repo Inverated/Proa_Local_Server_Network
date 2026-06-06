@@ -66,6 +66,9 @@ async function initialise_filter(battery_role, initial_voltage) {
     
     const rc_values = await getBatteryRC_OCV(initial_voltage, values.battery_constants.interval_factor, tableName);
 
+    if (Math.abs(rc_values[0].OCV - initial_voltage) > 1.0) {
+        throw new Error(`Initial voltage ${initial_voltage}V is not within the expected range for battery type ${values.type}.`);
+    }
     if (rc_values.length === 0) {
         throw new Error(`No RC values found in DB for voltage ${initial_voltage}V and battery type ${values.type}. Ensure the database is populated with appropriate RC mapping data.`);
     }

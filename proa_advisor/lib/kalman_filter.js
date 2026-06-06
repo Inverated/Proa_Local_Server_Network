@@ -1,6 +1,6 @@
 const { initialise_filter, set_alternate_battery, set_main_battery, update } = require("./kalman_filter_helper/filter")
 const { adc_to_current, adc_to_voltage } = require("./adc_converter")
-const { insertBatteryState, insertSocSensorData, insertSocSensorDataBulk, getLastBatteryState, getRunId } = require("../model/db")
+const { insertMainBatteryState, insertAlternateBatteryState, insertSocSensorData, insertSocSensorDataBulk, getLastMainBatteryState, getLastAlternateBatteryState, getRunId } = require("../model/db")
 
 /*
 ADS8688 Pinouts:
@@ -23,18 +23,18 @@ Batt 2: Alternate battery, LiFePO4, 2s1p pack, 48.0V nominal, 50Ah
 */
 
 const VOLTAGE_DIVIDER_RATIO = (100 + 20) / 20; // R1 + R2 / R2
-const SAMPLE_INTERVAL_BEFORE_WRITE = 10000;
+const SAMPLE_INTERVAL_BEFORE_WRITE = 1000;
 let data_array = [];
 let is_initialised = false;
 let sample_count = 0;
 let current_run_id = null;
-
+console.log("onNewSample module loaded", __filename);
 let activeUpdates = 0;
 async function onNewSample(sample) {
     activeUpdates++;
 
     if (activeUpdates % 100 === 0) {
-        console.log("active updates", activeUpdates);
+        console.log("Background updates:", activeUpdates);
     }
     try {
 
@@ -63,15 +63,21 @@ async function onNewSample(sample) {
         });
     
         if (!is_initialised) {
-            // Alternate battery not used yet
-            set_main_battery("LiNMC");
-            await initialise_filter("main", batt1_v);
+            try {
+                set_main_battery("LiNMC");
+                await initialise_filter("main", batt1_v);
+                
+                set_alternate_battery("LiNMC");
+                await initialise_filter("alternate", batt2_v);
+            } catch (err) {
+                throw err; // Rethrow to be caught by outer try-catch
+            }
             is_initialised = true;
         }
     
         // Store updated state, cov mtx, process noise for recovery later if needed
         // process noise to ignore during recovery if time passed > tau 2
-        const [updated_state, covariance_matrix, process_noise] = await update({
+        const [m_updated_state, m_covariance_matrix, m_process_noise] = await update({
             battery_role: "main",
             time_diff_us: time_diff_us,
             I_batt_main: batt1_net,
@@ -80,12 +86,24 @@ async function onNewSample(sample) {
             I_load: load_in,
             V_terminal: batt1_v
         });
+
+        const [a_updated_state, a_covariance_matrix, a_process_noise] = await update({
+            battery_role: "alternate",
+            time_diff_us: time_diff_us,
+            I_batt_main: batt1_net,
+            I_batt_alternate: batt2_net,
+            I_mppt: mppt_out,
+            I_load: load_in,
+            V_terminal: batt2_v
+        });
     
         sample_count++;
         if (sample_count % SAMPLE_INTERVAL_BEFORE_WRITE === 0) {
-            await insertBatteryState(current_run_id, updated_state, covariance_matrix, process_noise);
+            await insertMainBatteryState(current_run_id, m_updated_state, m_covariance_matrix, m_process_noise);
+            await insertAlternateBatteryState(current_run_id, a_updated_state, a_covariance_matrix, a_process_noise);
             await insertSocSensorDataBulk(data_array);
-            console.log(counter, updated_state[0], batt1_v);
+            console.log(`SoC Main: ${m_updated_state[0].toFixed(5)}%, Alternate: ${a_updated_state[0].toFixed(5)}% at sample count ${sample_count}`);
+            console.log(`Main terminal voltage: ${batt1_v.toFixed(5)}V, Alternate terminal voltage: ${batt2_v.toFixed(5)}V\n`);
             data_array = [];
         }
     } finally {

@@ -6,27 +6,36 @@ const csv = require('csv-parser');
 
 const tables_initialized = {
     SOCSensor: false,
-    BatteryState: false,
+    MainBatteryState: false,
+    AlternateBatteryState: false,
     MainRCMapping: false,
     AlternateRCMapping: false
 };
 
-const db = new sqlite3.Database(DB_PATH, (err) => {
-    if (err) {
-        console.error('Error opening database:', err.message);
-    } else {
-        initializeDatabase();
-        console.log('Connected to SQLite database.');
-    }
-});
+let db = null;
 
-async function initialiseDBifNeeded() {
-    if (Object.values(tables_initialized).every(initialized => initialized)) {
-        return Promise.resolve();
-    }
-       
-    await initializeDatabase();
+async function startDB() {
+    return new Promise((resolve, reject) => {
+        db = new sqlite3.Database(DB_PATH, (err) => {
+            if (err) {
+                console.error('Error opening database:', err.message);
+                reject(err);
+            } else {
+                initializeDatabase();
+                console.log('Connected to SQLite database.');
+                resolve(db);
+            }
+        })
+    })
 }
+
+function getDB() {
+    if (!db) {
+        throw new Error('Database not initialized. Call startDB() first.');
+    }
+    return db;
+}
+
 
 function initializeDatabase() {
     return new Promise((resolve, reject) => {
@@ -55,7 +64,7 @@ function initializeDatabase() {
             });
 
             db.run(`
-            CREATE TABLE IF NOT EXISTS BatteryState (
+            CREATE TABLE IF NOT EXISTS MainBatteryState (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
                 run_id INTEGER NOT NULL,
@@ -64,10 +73,27 @@ function initializeDatabase() {
                 process_noise BLOB NOT NULL
             )`, (err) => {
                 if (err) {
-                    console.error('Error creating BatteryState table:', err.message);
+                    console.error('Error creating MainBatteryState table:', err.message);
                     reject(err);
                 } else {
-                    tables_initialized.BatteryState = true;
+                    tables_initialized.MainBatteryState = true;
+                }
+            });
+
+            db.run(`
+            CREATE TABLE IF NOT EXISTS AlternateBatteryState (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                run_id INTEGER NOT NULL,
+                state_vector BLOB NOT NULL,
+                covariance_matrix BLOB NOT NULL,
+                process_noise BLOB NOT NULL
+            )`, (err) => {
+                if (err) {
+                    console.error('Error creating AlternateBatteryState table:', err.message);
+                    reject(err);
+                } else {
+                    tables_initialized.AlternateBatteryState = true;
                 }
             });
 
@@ -142,24 +168,43 @@ function insertBulkBatteryState(batch, tableName = 'MainRCMapping') {
     return batch.length;
 }
 
+async function getRCTableLength(tableName = 'MainRCMapping') {
+    return new Promise((resolve, reject) => {
+        db.get(`SELECT COUNT(*) AS count FROM ${tableName}`, (err, row) => {
+            if (err) {
+                console.error(`Error counting rows in ${tableName}:`, err.message);
+                reject(err);
+            } else {
+                resolve(row.count);
+            }
+        });
+    });
+}
 
-function insertBatteryState(battery_type = 'LiNMC', tableName = 'MainRCMapping') {
+async function insertBatteryState(battery_type = 'LiNMC', tableName = 'MainRCMapping', override = false) {
     const rc_path = "./model/battery_model/" + battery_type + "/battery_state.csv";
     let batch = [];
     const batch_size = 2000;
     let inserted = 0;
-    
-    fs.createReadStream(rc_path)
-        .pipe(csv())
-        .on('data', (row) => {
-            const { SoC, R0, R1, R2, C1, C2, Tau1, Tau2, OCV } = row;
-            batch.push([
-                parseFloat(SoC),
-                parseFloat(R0),
-                parseFloat(R1),
-                parseFloat(R2),
-                parseFloat(C1),
-                parseFloat(C2),
+
+    const tableLength = await getRCTableLength(tableName);
+    if (tableLength > 0 && !override) {
+        console.log(`${tableName} already has ${tableLength} records. Skipping insertion.`);
+        return;
+    }
+
+    return new Promise((resolve, reject) => {
+        fs.createReadStream(rc_path)
+            .pipe(csv())
+            .on('data', (row) => {
+                const { SoC, R0, R1, R2, C1, C2, Tau1, Tau2, OCV } = row;
+                batch.push([
+                    parseFloat(SoC),
+                    parseFloat(R0),
+                    parseFloat(R1),
+                    parseFloat(R2),
+                    parseFloat(C1),
+                    parseFloat(C2),
                 parseFloat(Tau1),
                 parseFloat(Tau2),
                 parseFloat(OCV)
@@ -174,12 +219,19 @@ function insertBatteryState(battery_type = 'LiNMC', tableName = 'MainRCMapping')
                 inserted += insertBulkBatteryState(batch, tableName);
             }
             console.log(`Total inserted records: ${inserted} into ${tableName}`);
+            resolve(inserted);
+        })
+        .on('error', (err) => {
+            console.error('Error reading CSV file:', err.message);
+            reject(err);
         });
+    });
 }
 
 
 module.exports = {
-    db,
+    getDB,
+    startDB,
     initializeDatabase,
     insertBatteryState
 };
