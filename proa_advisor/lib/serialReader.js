@@ -89,7 +89,7 @@ function processBuffer() {
         if (recvBuf.length < PACKET_BYTES) break;
 
         const counter  = recvBuf.readUInt16LE(4);
-        const timediff = recvBuf.readUInt32LE(6);
+        const time_diff_us = recvBuf.readUInt32LE(6);
         const readings = [];
         for (let i = 0; i < 8; i++) {
             readings.push(recvBuf.readUInt16LE(10 + i * 2));
@@ -117,13 +117,13 @@ function processBuffer() {
 
         lastCounter = adjustedCounter;
 
-        if (timediff > TIME_BETWEEN_SAMPLES_ALERT) {
-            console.warn(`Large time gap: ${timediff} us at counter ${adjustedCounter}`);
+        if (time_diff_us > TIME_BETWEEN_SAMPLES_ALERT) {
+            console.warn(`Large time gap: ${time_diff_us} us at counter ${adjustedCounter}`);
         }
 
         queue.push({
             counter: adjustedCounter,
-            time_diff_us: timediff,
+            time_diff_us: time_diff_us,
             a0: readings[0],
             a1: readings[1],
             a2: readings[2],

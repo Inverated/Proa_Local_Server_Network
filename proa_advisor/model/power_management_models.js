@@ -21,9 +21,22 @@ async function startDB() {
                 console.error('Error opening database:', err.message);
                 reject(err);
             } else {
-                initializeDatabase();
-                console.log('Connected to SQLite database.');
-                resolve(db);
+                new Promise((res, rej) => {
+                    for (let attempt = 0; attempt < 10; attempt++) {
+                        initializeDatabase();
+                        setTimeout(() => {
+                            if (Object.values(tables_initialized).every(v => v)) {
+                                //console.log('All tables initialized successfully.');
+                                res();
+                            } else {
+                                console.log(`Database initialization attempt ${attempt + 1} failed. Retrying...`);
+                            }
+                        }, 500);
+                    }
+                }).then(() => {
+                    console.log('Database initialized successfully.');
+                    resolve(db);
+                });
             }
         })
     })
@@ -136,11 +149,12 @@ function initializeDatabase() {
                     tables_initialized.AlternateRCMapping = true;
                 }
             });
-        });
+        })
     })
 };
 
 function insertBulkBatteryState(batch, tableName = 'MainRCMapping') {
+    const db = getDB();
     const placeholders = batch.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ');
     const flatValues = batch.flat();
     const sql = `INSERT INTO ${tableName} (SoC, R0, R1, R2, C1, C2, Tau1, Tau2, OCV) VALUES ${placeholders}
@@ -169,6 +183,7 @@ function insertBulkBatteryState(batch, tableName = 'MainRCMapping') {
 }
 
 async function getRCTableLength(tableName = 'MainRCMapping') {
+    const db = getDB();
     return new Promise((resolve, reject) => {
         db.get(`SELECT COUNT(*) AS count FROM ${tableName}`, (err, row) => {
             if (err) {
@@ -186,8 +201,10 @@ async function insertBatteryState(battery_type = 'LiNMC', tableName = 'MainRCMap
     let batch = [];
     const batch_size = 2000;
     let inserted = 0;
+    const db = getDB();
 
     const tableLength = await getRCTableLength(tableName);
+    console.log(`${tableName} currently has ${tableLength} records.`);
     if (tableLength > 0 && !override) {
         console.log(`${tableName} already has ${tableLength} records. Skipping insertion.`);
         return;
@@ -205,9 +222,9 @@ async function insertBatteryState(battery_type = 'LiNMC', tableName = 'MainRCMap
                     parseFloat(R2),
                     parseFloat(C1),
                     parseFloat(C2),
-                parseFloat(Tau1),
-                parseFloat(Tau2),
-                parseFloat(OCV)
+                    parseFloat(Tau1),
+                    parseFloat(Tau2),
+                    parseFloat(OCV)
             ]);
             if (batch.length >= batch_size) {
                 inserted += insertBulkBatteryState(batch, tableName);

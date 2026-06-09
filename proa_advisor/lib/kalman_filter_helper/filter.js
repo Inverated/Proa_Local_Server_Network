@@ -4,15 +4,15 @@ const { getBatteryRC_SoC, getBatteryRC_OCV } = require('../../model/db');
 
 /*
 Sensor placement:
-I_MPPT: Out to batteries (Positive)
-I_Load: Into load (Positive)
-I_batt_main: Into battery (Positive if charging)
-I_batt_alternate: Into battery (Positive if charging)
+I_MPPT: Towards Battery(Positive)       A0      
+I_Load: Towards load (Positive)         A1
+I_batt_main: Out of battery (Positive if discharging)       A2
+I_batt_alternate: Out of battery (Positive if discharging)  A3
 */
 
-const INITIAL_SOC_VAR = 0.05;
-const INITIAL_REST_VAR = 0.005;
-const PROCESS_NOISE_RC = 0.001**2;
+const INITIAL_SOC_VAR = 0.05 ** 2;
+const INITIAL_REST_VAR = 0.005 ** 2;
+const PROCESS_NOISE_RC = 0.001 ** 2;
 const ADC_SAMPLING_RATE = 1000;   // Hz; Around 1000-1200 samples per second
 
 const main_battery_values = {
@@ -63,9 +63,8 @@ async function initialise_filter(battery_role, initial_voltage) {
     const values = battery_role === "main" ? main_battery_values : alternate_battery_values;
     const tableName = battery_role === "main" ? "MainRCMapping" : "AlternateRCMapping";
     values.battery_constants = load_battery_constants(values.type);
-    
-    const rc_values = await getBatteryRC_OCV(initial_voltage, values.battery_constants.interval_factor, tableName);
 
+    const rc_values = await getBatteryRC_OCV(initial_voltage, values.battery_constants.interval_factor, tableName);
     if (Math.abs(rc_values[0].OCV - initial_voltage) > 1.0) {
         throw new Error(`Initial voltage ${initial_voltage}V is not within the expected range for battery type ${values.type}.`);
     }
@@ -78,7 +77,6 @@ async function initialise_filter(battery_role, initial_voltage) {
     state_vector[0] = rc_value.SoC;
     state_vector[1] = 0;    // Assume fully rested at startup
     state_vector[2] = 0;    // Update this to take into account prev startup time later
-    console.log(`Initialised ${battery_role} battery filter with voltage=${initial_voltage}V, estimated SoC=${state_vector[0]}`);
 
     // Will adjust itself over time
     const covariance_matrix = values.covariance_matrix;
@@ -110,10 +108,11 @@ async function initialise_filter(battery_role, initial_voltage) {
     measurement_noise[0] = values.battery_constants.sigma_v ** 2;
     measurement_noise[1] = 0;
     measurement_noise[2] = 0;
-    measurement_noise[3] = values.battery_constants.sigma_kcl ** 2; 
+    measurement_noise[3] = values.battery_constants.sigma_kcl ** 2;
+    console.log(`Initialised ${battery_role} battery filter with SoC=${state_vector[0]}%, Voltage=${initial_voltage}V, OCV=${rc_value.OCV}V, R0=${rc_value.R0}Ω, R1=${rc_value.R1}Ω, R2=${rc_value.R2}Ω, Tau1=${rc_value.Tau1}s, Tau2=${rc_value.Tau2}s`);
 }
 
-async function predict_state(battery_role, battery_current, time_diff_us){
+async function predict_state(battery_role, battery_current, time_diff_us) {
     const values = battery_role === "main" ? main_battery_values : alternate_battery_values;
 
     const time_diff = time_diff_us / 1e6;   // Convert us to s
@@ -135,7 +134,7 @@ async function predict_state(battery_role, battery_current, time_diff_us){
 
     // Propage to next state
     //console.log(`Predicting next state for ${battery_role} battery with current=${battery_current}A and time diff=${time_diff}s`);
-    state_vector[0] -= (-battery_current * time_diff) / (values.battery_constants.Q_total * 3600);
+    state_vector[0] -= (battery_current * time_diff) / (values.battery_constants.Q_total * 3600);
     //console.log(`Predicted SoC before bounds check: ${state_vector[0]}`);
     state_vector[1] = state_vector[1] * d1 + (1 - d1) * battery_current * R1;
     state_vector[2] = state_vector[2] * d2 + (1 - d2) * battery_current * R2;
@@ -159,7 +158,7 @@ async function predict_state(battery_role, battery_current, time_diff_us){
     const state_transition_T = transpose_mtx(state_transition, 3, 3);
     const covariance_matrix = values.covariance_matrix;
     const process_noise = values.process_noise;
-    
+
     // Update covariance matrix: P_pred = F × P × F_transpose + Q
     // F: state transition matrix; P: covariance matrix; Q: process noise
     const FxP = mul_mtx(state_transition, 3, 3, covariance_matrix, 3, 3);
@@ -168,7 +167,7 @@ async function predict_state(battery_role, battery_current, time_diff_us){
     values.covariance_matrix.set(new_covariance);
 
     return rc_values[0];
-} 
+}
 
 async function compute_innovation(battery_role, rc_value, I_batt_main, I_batt_alternate, I_mppt, I_load, V_terminal) {
     const values = battery_role === "main" ? main_battery_values : alternate_battery_values;
@@ -177,29 +176,31 @@ async function compute_innovation(battery_role, rc_value, I_batt_main, I_batt_al
 
     // Predicted measurements: V_predicted = OCV - R0×I_batt - x_pred[1] - x_pred[2]
     const batt_current = battery_role === "main" ? I_batt_main : I_batt_alternate;
-    let V_pred = OCV - (-batt_current) * R0 - values.state_vector[1] - values.state_vector[2];
+    let V_pred = OCV - (batt_current) * R0 - values.state_vector[1] - values.state_vector[2];
     //console.log(`Predicted voltage: ${V_pred}V based on OCV=${OCV}V, R0=${R0}Ω, I_batt=${batt_current}A, V_rest1=${values.state_vector[1]}V, V_rest2=${values.state_vector[2]}V`);
-    let KCL_pred = 0    // Should be 0 in an ideal model
 
     // Actual measurements
     let V_actual = V_terminal;
-    let KCL_actual = I_mppt - I_load - I_batt_main - I_batt_alternate;
 
     // Innovation
     const innovation = new Float32Array(2);
     innovation[0] = V_actual - V_pred;
-    //console.log(`Predicted voltage: ${V_pred}V, Actual voltage: ${V_actual}V, Voltage innovation: ${innovation[0]}V`);
-    innovation[1] = KCL_actual - KCL_pred;
-    //console.log(`Predicted KCL residual: ${KCL_pred}A, Actual KCL residual: ${KCL_actual}A, KCL innovation: ${innovation[1]}A`);
 
+    //console.log(`Predicted voltage: ${V_pred}V, Actual voltage: ${V_actual}V, Voltage innovation: ${innovation[0]}V`);
+    let I_model = (OCV - V_terminal - values.state_vector[1] - values.state_vector[2]) / R0;
+
+    let I_kcl = I_mppt - I_load + I_batt_main + I_batt_alternate;
+
+    innovation[1] = I_kcl - I_model;
     return innovation;
 }
 
-async function compute_measurement_jacobian(battery_role) {
+async function compute_measurement_jacobian(battery_role, rc_value) {
     const values = battery_role === "main" ? main_battery_values : alternate_battery_values;
+    const { OCV, R0, R1, R2, Tau1, Tau2 } = rc_value;
 
     const H = new Float32Array(6);   // Measurement matrix, intermediate value
-    
+
     // Row 0: How terminal voltage is affected by SoC and rest voltages
     const rc_values = await getBatteryRC_SoC(values.state_vector[0], battery_role === "main" ? "MainRCMapping" : "AlternateRCMapping", 3);
     let rc_high, rc_low;
@@ -210,15 +211,20 @@ async function compute_measurement_jacobian(battery_role) {
         rc_high = rc_values[1];
         rc_low = rc_values[0];
     } else {
-        throw new Error("Not enough RC values returned from DB to compute measurement jacobian. Need at least 2 for slope calculation.");
+        throw new Error(`Not enough RC values for SoC ${values.state_vector[0]} returned from DB to compute measurement jacobian. Need at least 2 for slope calculation.`);
     }
 
-    H[0] = (rc_high.OCV - rc_low.OCV) / (rc_high.SoC - rc_low.SoC);
-    H[1] = -1   //V_RC directly subtracts from V
+    const dOCVdSoC = (rc_high.OCV - rc_low.OCV) / (rc_high.SoC - rc_low.SoC);
+    H[0] = dOCVdSoC;   // How voltage changes with SoC changes
+    H[1] = -1;   //V_RC directly subtracts from V
     H[2] = -1;
-    
+
     // Row 1: how KCL residual depends on each state
-    // Basically does not depend on SoC or rest voltages
+
+    /* H[3] = -(dOCVdSoC / R0) / 100;
+    H[4] = -1 / R0 / 100;
+    H[5] = -1 / R0 / 100; */
+
     H[3] = 0;
     H[4] = 0;
     H[5] = 0;
@@ -226,41 +232,42 @@ async function compute_measurement_jacobian(battery_role) {
     return H;
 }
 
-async function update({battery_role, time_diff_us, I_batt_main, I_batt_alternate, I_mppt, I_load, V_terminal}) {
+async function update({ battery_role, time_diff_us, I_batt_main, I_batt_alternate, I_mppt, I_load, V_terminal }) {
     // H: measurement jacobian; R: measurement noise covariance; x_pred: predicted state vector; P_pred: predicted covariance matrix
     const values = battery_role === "main" ? main_battery_values : alternate_battery_values;
 
     const battery_current = battery_role === "main" ? I_batt_main : I_batt_alternate;
+    const old_soc = values.state_vector[0];
     const rc_value = await predict_state(battery_role, battery_current, time_diff_us);
     //console.log("Fetched RC value for update step:", rc_value);
-    
+
     const x_pred = values.state_vector;
     const P_pred = values.covariance_matrix;
-    const H = await compute_measurement_jacobian(battery_role);
+    const H = await compute_measurement_jacobian(battery_role, rc_value);
     const R = values.measurement_noise;
 
     // Innovation cov: S = H × P_pred × H_transpose + R
-    let H_t             = transpose_mtx(H, 2, 3);
-    let HxP_pred        = mul_mtx(H, 2, 3, P_pred, 3, 3); // returns 2x3
-    let HxP_predxH_t    = mul_mtx(HxP_pred, 2, 3, H_t, 3, 2);
-    let innovation_cov  = add_mtx(HxP_predxH_t, 2, 2, R, 2, 2);
+    let H_t = transpose_mtx(H, 2, 3);
+    let HxP_pred = mul_mtx(H, 2, 3, P_pred, 3, 3); // returns 2x3
+    let HxP_predxH_t = mul_mtx(HxP_pred, 2, 3, H_t, 3, 2);
+    let innovation_cov = add_mtx(HxP_predxH_t, 2, 2, R, 2, 2);
 
     // Kalman gain: K = P_pred × H_transpose × S^-1
-    let S_inv           = inv_mtx2x2(innovation_cov);
-    let P_predxH_t      = mul_mtx(P_pred, 3, 3, H_t, 3, 2);
-    let K               = mul_mtx(P_predxH_t, 3, 2, S_inv, 2, 2); 
+    let S_inv = inv_mtx2x2(innovation_cov);
+    let P_predxH_t = mul_mtx(P_pred, 3, 3, H_t, 3, 2);
+    let K = mul_mtx(P_predxH_t, 3, 2, S_inv, 2, 2);
     //console.log("Kalman Gain K:", K);
 
     // Updated state: x_updated = x_pred + K × innovation
-    let innovation       = await compute_innovation(battery_role, rc_value, I_batt_main, I_batt_alternate, I_mppt, I_load, V_terminal);
+    let innovation = await compute_innovation(battery_role, rc_value, I_batt_main, I_batt_alternate, I_mppt, I_load, V_terminal);
     //console.log("Innovation:", innovation);
-    let KxInnovation    = mul_mtx(K, 3, 2, innovation, 2, 1);
+    let KxInnovation = mul_mtx(K, 3, 2, innovation, 2, 1);
     //console.log("K x innovation:", KxInnovation);
-    let x_updated       = add_mtx(x_pred, 3, 1, KxInnovation, 3, 1);
+    let x_updated = add_mtx(x_pred, 3, 1, KxInnovation, 3, 1);
 
     // Restrict SoC to [0, 1]
     //console.log("Updated SoC before bounds check:", x_updated[0]);
-    x_updated[0]        = Math.max(0.0, Math.min(100.0, x_updated[0]));
+    x_updated[0] = Math.max(0.0, Math.min(100.0, x_updated[0]));
     //console.log("Updated SoC after bounds check:", x_updated[0]);
     //console.log();
     // Update cov using Joseph form (numerically stable): P_updated = (I - K × H) × P_pred × (I - K × H)_transpose + K × R × K_transpose
@@ -287,7 +294,13 @@ async function update({battery_role, time_diff_us, I_batt_main, I_batt_alternate
     }
     values.state_vector.set(x_updated);
     values.covariance_matrix.set(P_updated);
-
+/*     console.log({
+        soc_before_predict: old_soc,
+        soc_after_predict: x_pred[0],
+        innovation_voltage: innovation[0],
+        kalman_soc_correction: KxInnovation[0],
+        soc_after_update: x_updated[0]
+    }); */
     return [values.state_vector, values.covariance_matrix, values.process_noise];
 }
 

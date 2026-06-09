@@ -49,10 +49,13 @@ async function run_test() {
     const files = get_all_files_in_folder('./model/battery_model/test_data');
     const consolidated = await consolidated_data(files);
     console.log(`Total samples to process: ${consolidated.length}`);
-    for (const line of consolidated) {
-        //console.log(`Processing sample: counter=${line.counter}, time_diff_us=${line.time_diff_us}, a0=${line.a0}, a1=${line.a1}, a2=${line.a2}, a3=${line.a3}, a4=${line.a4}, a5=${line.a5}, a6=${line.a6}, a7=${line.a7}`);
-        await onNewSample(line);
-        //await new Promise(resolve => setTimeout(resolve, DELAY_MS));
+
+    for (let i = 0; i < consolidated.length; i++) {
+        if (i == consolidated.length - 1) {
+            await onNewSample(consolidated[i], true);
+        } else {
+            await onNewSample(consolidated[i], false);
+        }
     }
 }
 

@@ -24,16 +24,13 @@ function adc_to_voltage(adc_value, range) {
 }
 
 function adc_to_current(adc_value, range) {
-    const voltage = adc_to_voltage(adc_value, range);
+    // current = 0.90225289 * x**2 + 15.06345527*x, x = voltage
 
-    // Calibrated quadratic fn for HE Sensor measured on 16 bit ADC
-    const a = -0.0001232378890506735;
-    const b = 0.06268986789356691;
-    const mid_pt = 32768;
-    if (adc_value >= mid_pt) {
-        return (-b + Math.sqrt(b * b + 4 * a * voltage)) / (2 * a);
+    const voltage = adc_to_voltage(adc_value, range);
+    if (voltage < 0) {
+        return -(0.90225289 * Math.abs(voltage) ** 2 + 15.06345527 * Math.abs(voltage));
     } else {
-        return (-b + Math.sqrt(b * b - 4 * a * voltage)) / (2 * a);
+        return 0.90225289 * voltage ** 2 + 15.06345527 * voltage;
     }
 }
 

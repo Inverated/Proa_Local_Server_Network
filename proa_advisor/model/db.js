@@ -132,15 +132,25 @@ async function getBatteryRC_SoC(soc, tableName, count = 1) {
         throw new Error("Invalid table name. Must be 'MainRCMapping' or 'AlternateRCMapping'.");
     }
 
-    const half = Math.floor(count / 2);
-    const index = soc_to_index(soc);
-    const start_index = Math.max(0, index - half);
-    const end_index = index + half;
-
     const rc_data = await fetchAndCacheRC(tableName);
-    const filtered = rc_data.slice(start_index, end_index + 1);
+    let filtered = null;
+
+    if (100 - soc < 0.001) {
+        filtered = rc_data.slice(-count);
+    } else if (soc < 0.001) {
+        filtered = rc_data.slice(0, count);
+    } else {
+        const half = Math.floor(count / 2);
+        const index = soc_to_index(soc);
+        const start_index = Math.max(0, index - half);
+        
+        const end_index = index + half;
+        
+        filtered = rc_data.slice(start_index, end_index + 1);
+    }
+
     if (Math.abs(soc - filtered[0].SoC) > 0.5) {
-        console.error(`Requested SoC ${soc} is wrong`);
+        //console.error(`Requested SoC ${soc} is wrong. Received ${filtered[0].SoC} from database.`);
     }
     return filtered;
 }
@@ -152,6 +162,7 @@ async function getBatteryRC_OCV(voltage, factor, tableName, count = 1) {
     const table_size = 10 ** (factor + 2) + 1;
 
     const rc_data = await fetchAndCacheRC(tableName);
+    
     const sorted = rc_data.sort((a, b) => Math.abs(a.OCV - voltage) - Math.abs(b.OCV - voltage));
     return sorted.slice(0, count);
 }
