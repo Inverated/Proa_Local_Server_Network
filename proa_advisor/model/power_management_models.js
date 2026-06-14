@@ -83,7 +83,8 @@ function initializeDatabase() {
                 run_id INTEGER NOT NULL,
                 state_vector BLOB NOT NULL,
                 covariance_matrix BLOB NOT NULL,
-                process_noise BLOB NOT NULL
+                process_noise BLOB NOT NULL,
+                sensor_readings BLOB NOT NULL
             )`, (err) => {
                 if (err) {
                     console.error('Error creating MainBatteryState table:', err.message);
@@ -100,7 +101,8 @@ function initializeDatabase() {
                 run_id INTEGER NOT NULL,
                 state_vector BLOB NOT NULL,
                 covariance_matrix BLOB NOT NULL,
-                process_noise BLOB NOT NULL
+                process_noise BLOB NOT NULL,
+                sensor_readings BLOB NOT NULL
             )`, (err) => {
                 if (err) {
                     console.error('Error creating AlternateBatteryState table:', err.message);

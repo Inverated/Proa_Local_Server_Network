@@ -23,8 +23,8 @@ startDB().then(() => {
 }).then((count) => {
     console.log(`Inserted ${count} records into AlternateRCMapping.`);
 }).then(() => {
-    //run_test();
-    startSerialReader();
+    run_test();
+    //startSerialReader();
 });
 
 app.get("/", (req, res) => {

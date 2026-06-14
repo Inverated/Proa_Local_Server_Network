@@ -24,8 +24,8 @@ Batt 2: Alternate battery, LiFePO4, 2s1p pack, 48.0V nominal, 50Ah
 
 const VOLTAGE_DIVIDER_RATIO = (100 + 20) / 20; // R1 + R2 / R2
 const SAMPLE_INTERVAL_BEFORE_WRITE = 1000;
-const SAVE_STATES_TO_DB = true;
-const SAVE_ADC_READINGS_TO_DB = true;
+const SAVE_STATES_TO_DB = false;
+const SAVE_ADC_READINGS_TO_DB = false;
 const SAMPLE_INTERVAL_MS = 0; // Adjust this value as needed to simulate real-time data arrival
 
 let data_array = [];
@@ -54,14 +54,21 @@ async function onNewSample(sample, log = false) {
             current_run_id = await getRunId();
         }
         let { counter, time_diff_us, a0, a1, a2, a3, a4, a5, a6, a7 } = sample;
-        //a6 *= 2;
-        //a7 *= 2;
-        const mppt_out  = adc_to_current(a0, 1);
-        const load_in   = adc_to_current(a1, 1);
-        const batt1_net = adc_to_current(a2, 1);
-        const batt2_net = adc_to_current(a3, 1);
-        const batt1_v   = adc_to_voltage(a6, 5) * VOLTAGE_DIVIDER_RATIO;
-        const batt2_v   = adc_to_voltage(a7, 5) * VOLTAGE_DIVIDER_RATIO;
+
+        let mppt_out  = Math.max(adc_to_current(a0, 1), 0);
+        let load_in   = Math.max(adc_to_current(a1, 1), 0);
+        let batt1_net = adc_to_current(a2, 1);
+        let batt2_net = adc_to_current(a3, 1);
+        let batt1_v   = adc_to_voltage(a6, 5) * VOLTAGE_DIVIDER_RATIO;
+        let batt2_v   = adc_to_voltage(a7, 5) * VOLTAGE_DIVIDER_RATIO;
+
+        // Temp changes //
+        batt1_v *= 2;
+        batt2_v = batt1_v;
+        batt2_net = 0;
+        batt1_net = batt1_net;
+        /// -----------///
+
         total_current += load_in;
         total_time += time_diff_us / 1e6;
 
@@ -131,12 +138,33 @@ async function onNewSample(sample, log = false) {
                 await insertSocSensorDataBulk(data_array);
             }
             if (batt1_v > 12 && SAVE_STATES_TO_DB) {
-                await insertMainBatteryState(current_run_id, m_updated_state, m_covariance_matrix, m_process_noise);
+                const main_sensor_readings = {
+                    I_batt_main: batt1_net,
+                    I_batt_alternate: batt2_net,
+                    I_mppt: mppt_out,
+                    I_load: load_in,
+                    V_batt_main: batt1_v,
+                    V_batt_alternate: batt2_v
+                }
+                await insertMainBatteryState(current_run_id, m_updated_state, m_covariance_matrix, m_process_noise, main_sensor_readings);
+            }
+            if (batt1_v > 12) {
                 console.log(`Counter: ${sample_count}, SoC Main: ${m_updated_state[0].toFixed(5)}%, Voltage Main: ${batt1_v.toFixed(5)}V, Current Main: ${batt1_net.toFixed(5)}A`);
             }
             if (batt2_v > 12 && SAVE_STATES_TO_DB) {
-                await insertAlternateBatteryState(current_run_id, a_updated_state, a_covariance_matrix, a_process_noise);
-                console.log(`Counter: ${sample_count}, SoC Alternate: ${a_updated_state[0].toFixed(5)}%, Voltage Alternate: ${batt2_v.toFixed(5)}V, Current Alternate: ${batt2_net.toFixed(5)}A`);
+                const alternate_sensor_readings = {
+                    I_batt_main: batt1_net,
+                    I_batt_alternate: batt2_net,
+                    I_mppt: mppt_out,
+                    I_load: load_in,
+                    V_batt_main: batt1_v,
+                    V_batt_alternate: batt2_v
+                };
+                await insertAlternateBatteryState(current_run_id, a_updated_state, a_covariance_matrix, a_process_noise, alternate_sensor_readings);
+            }
+
+            if (batt2_v > 12) {
+                //console.log(`Counter: ${sample_count}, SoC Alternate: ${a_updated_state[0].toFixed(5)}%, Voltage Alternate: ${batt2_v.toFixed(5)}V, Current Alternate: ${batt2_net.toFixed(5)}A`);
             }
             //console.log(`Total Current: ${total_current.toFixed(5)}A, Total Time: ${total_time.toFixed(5)}s`);
             data_array = [];
@@ -150,6 +178,14 @@ async function onNewSample(sample, log = false) {
 
 }
 
+async function getCurrentRunId() {
+    if (current_run_id === null) {
+        current_run_id = await getRunId();
+    }
+    return current_run_id;
+}
+
 module.exports = {
-    onNewSample
+    onNewSample,
+    getCurrentRunId
 }

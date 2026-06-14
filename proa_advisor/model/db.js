@@ -57,13 +57,13 @@ async function insertSocSensorDataBulk(dataArray) {
     });
 }
 
-async function insertMainBatteryState(run_id, state_vector, covariance_matrix, process_noise) {
+async function insertMainBatteryState(run_id, state_vector, covariance_matrix, process_noise, sensor_readings) {
     const db = getDB();
     db.serialize(() => {
         db.run(`
-            INSERT INTO MainBatteryState (run_id, state_vector, covariance_matrix, process_noise)
-            VALUES (?, ?, ?, ?)
-        `, [run_id, state_vector, covariance_matrix, process_noise], function (err) {
+            INSERT INTO MainBatteryState (run_id, state_vector, covariance_matrix, process_noise, sensor_readings)
+            VALUES (?, ?, ?, ?, ?)
+        `, [run_id, state_vector, covariance_matrix, process_noise, sensor_readings], function (err) {
             if (err) {
                 console.error('Error inserting main battery state data:', err.message);
             }
@@ -71,13 +71,13 @@ async function insertMainBatteryState(run_id, state_vector, covariance_matrix, p
     });
 }
 
-async function insertAlternateBatteryState(run_id, state_vector, covariance_matrix, process_noise) {
+async function insertAlternateBatteryState(run_id, state_vector, covariance_matrix, process_noise, sensor_readings) {
     const db = getDB();
     db.serialize(() => {
         db.run(`
-            INSERT INTO AlternateBatteryState (run_id, state_vector, covariance_matrix, process_noise)
-            VALUES (?, ?, ?, ?)
-        `, [run_id, state_vector, covariance_matrix, process_noise], function (err) {
+            INSERT INTO AlternateBatteryState (run_id, state_vector, covariance_matrix, process_noise, sensor_readings)
+            VALUES (?, ?, ?, ?, ?)
+        `, [run_id, state_vector, covariance_matrix, process_noise, sensor_readings], function (err) {
             if (err) {
                 console.error('Error inserting alternate battery state data:', err.message);
             }
@@ -149,9 +149,10 @@ async function getBatteryRC_SoC(soc, tableName, count = 1) {
         filtered = rc_data.slice(start_index, end_index + 1);
     }
 
-    if (Math.abs(soc - filtered[0].SoC) > 0.5) {
-        //console.error(`Requested SoC ${soc} is wrong. Received ${filtered[0].SoC} from database.`);
+    if (Math.abs(soc - filtered[0].SoC) > 0.5 || (filtered[0].SoC < 1e-10 && soc > 0)) {
+        console.error(`Requested SoC ${soc.toFixed(40)} is wrong. Received ${filtered[0].SoC.toFixed(40)} from database.`);
     }
+    //console.log(filtered)
     return filtered;
 }
 
@@ -227,6 +228,56 @@ async function getRunId(time_before_new_run = 5 * 60 * 1000) { // 5 minutes
     });
 }
 
+async function fetchStateAndSensorReadings(tableName = 'MainBatteryState', runId = null, count = 50) {
+    // Only allow known state tables to avoid SQL injection via table name
+    if (tableName !== 'MainBatteryState' && tableName !== 'AlternateBatteryState') {
+        throw new Error("Invalid table name. Must be 'MainBatteryState' or 'AlternateBatteryState'.");
+    }
+
+    const db = getDB();
+    if (runId === null || runId === undefined) {
+        runId = await getRunId();
+    }
+
+    return new Promise((resolve, reject) => {
+        const sql = `SELECT id, run_id, timestamp, state_vector, sensor_readings FROM ${tableName} WHERE run_id = ? ORDER BY id ASC LIMIT ?`;
+        db.all(sql, [runId, count], (err, rows) => {
+            if (err) {
+                console.error(`Error retrieving data from ${tableName} for run_id ${runId}:`, err.message);
+                reject(err);
+            } else {
+                // Try to parse JSON if stored as TEXT
+                const parsed = rows.map(r => {
+                    let state_vector = r.state_vector;
+                    let sensor_readings = r.sensor_readings;
+                    try {
+                        if (typeof state_vector === 'string') {
+                            state_vector = JSON.parse(state_vector);
+                        }
+                    } catch (e) {
+                        // leave as-is if parsing fails
+                    }
+                    try {
+                        if (typeof sensor_readings === 'string') {
+                            sensor_readings = JSON.parse(sensor_readings);
+                        }
+                    } catch (e) {
+                        // leave as-is if parsing fails
+                    }
+                    return {
+                        id: r.id,
+                        run_id: r.run_id,
+                        timestamp: r.timestamp,
+                        state_vector,
+                        sensor_readings
+                    };
+                });
+                resolve(parsed);
+            }
+        });
+    });
+}
+
 module.exports = {
     insertSocSensorData,
     insertSocSensorDataBulk,
@@ -236,5 +287,6 @@ module.exports = {
     getBatteryRC_OCV,
     getLastMainBatteryState,
     getLastAlternateBatteryState,
-    getRunId
+    getRunId,
+    fetchStateAndSensorReadings
 };
