@@ -8,6 +8,7 @@ const tables_initialized = {
     SOCSensor: false,
     MainBatteryState: false,
     AlternateBatteryState: false,
+    KCL_Correctionstate: false,
     MainRCMapping: false,
     AlternateRCMapping: false
 };
@@ -83,7 +84,6 @@ function initializeDatabase() {
                 run_id INTEGER NOT NULL,
                 state_vector BLOB NOT NULL,
                 covariance_matrix BLOB NOT NULL,
-                process_noise BLOB NOT NULL,
                 sensor_readings BLOB NOT NULL
             )`, (err) => {
                 if (err) {
@@ -101,7 +101,6 @@ function initializeDatabase() {
                 run_id INTEGER NOT NULL,
                 state_vector BLOB NOT NULL,
                 covariance_matrix BLOB NOT NULL,
-                process_noise BLOB NOT NULL,
                 sensor_readings BLOB NOT NULL
             )`, (err) => {
                 if (err) {
@@ -111,6 +110,22 @@ function initializeDatabase() {
                     tables_initialized.AlternateBatteryState = true;
                 }
             });
+
+            db.run(`
+                CREATE TABLE IF NOT EXISTS KCL_Correctionstate (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    run_id INTEGER NOT NULL,
+                    biases BLOB NOT NULL,
+                    covariance_matrix BLOB NOT NULL
+                )`, (err) => {
+                    if (err) {
+                        console.error('Error creating KCL_Correctionstate table:', err.message);
+                        reject(err);
+                    } else {
+                        tables_initialized.KCL_Correctionstate = true;
+                    }
+                });
 
             db.run(`
             CREATE TABLE IF NOT EXISTS MainRCMapping (

@@ -57,13 +57,13 @@ async function insertSocSensorDataBulk(dataArray) {
     });
 }
 
-async function insertMainBatteryState(run_id, state_vector, covariance_matrix, process_noise, sensor_readings) {
+async function insertMainBatteryState(run_id, state_vector, covariance_matrix, sensor_readings) {
     const db = getDB();
     db.serialize(() => {
         db.run(`
-            INSERT INTO MainBatteryState (run_id, state_vector, covariance_matrix, process_noise, sensor_readings)
-            VALUES (?, ?, ?, ?, ?)
-        `, [run_id, state_vector, covariance_matrix, process_noise, sensor_readings], function (err) {
+            INSERT INTO MainBatteryState (run_id, state_vector, covariance_matrix, sensor_readings)
+            VALUES (?, ?, ?, ?)
+        `, [run_id, state_vector, covariance_matrix, sensor_readings], function (err) {
             if (err) {
                 console.error('Error inserting main battery state data:', err.message);
             }
@@ -71,15 +71,29 @@ async function insertMainBatteryState(run_id, state_vector, covariance_matrix, p
     });
 }
 
-async function insertAlternateBatteryState(run_id, state_vector, covariance_matrix, process_noise, sensor_readings) {
+async function insertAlternateBatteryState(run_id, state_vector, covariance_matrix, sensor_readings) {
     const db = getDB();
     db.serialize(() => {
         db.run(`
-            INSERT INTO AlternateBatteryState (run_id, state_vector, covariance_matrix, process_noise, sensor_readings)
-            VALUES (?, ?, ?, ?, ?)
-        `, [run_id, state_vector, covariance_matrix, process_noise, sensor_readings], function (err) {
+            INSERT INTO AlternateBatteryState (run_id, state_vector, covariance_matrix, sensor_readings)
+            VALUES (?, ?, ?, ?)
+        `, [run_id, state_vector, covariance_matrix, sensor_readings], function (err) {
             if (err) {
                 console.error('Error inserting alternate battery state data:', err.message);
+            }
+        });
+    });
+}
+
+async function insertKCLCorrectionState(run_id, biases, covariance_matrix) {
+    const db = getDB();
+    db.serialize(() => {
+        db.run(`
+            INSERT INTO KCL_Correctionstate (run_id, biases, covariance_matrix)
+            VALUES (?, ?, ?)
+        `, [run_id, biases, covariance_matrix], function (err) {
+            if (err) {
+                console.error('Error inserting KCL correction state data:', err.message);
             }
         });
     });
@@ -135,9 +149,9 @@ async function getBatteryRC_SoC(soc, tableName, count = 1) {
     const rc_data = await fetchAndCacheRC(tableName);
     let filtered = null;
 
-    if (100 - soc < 0.001) {
+    if (1 - soc < 0.00001) {
         filtered = rc_data.slice(-count);
-    } else if (soc < 0.001) {
+    } else if (soc < 0.00001) {
         filtered = rc_data.slice(0, count);
     } else {
         const half = Math.floor(count / 2);
@@ -149,7 +163,7 @@ async function getBatteryRC_SoC(soc, tableName, count = 1) {
         filtered = rc_data.slice(start_index, end_index + 1);
     }
 
-    if (Math.abs(soc - filtered[0].SoC) > 0.5 || (filtered[0].SoC < 1e-10 && soc > 0)) {
+    if (Math.abs(soc - filtered[0].SoC) > 0.05 || (filtered[0].SoC < 1e-10 && soc > 0)) {
         console.error(`Requested SoC ${soc.toFixed(40)} is wrong. Received ${filtered[0].SoC.toFixed(40)} from database.`);
     }
     //console.log(filtered)
@@ -157,6 +171,7 @@ async function getBatteryRC_SoC(soc, tableName, count = 1) {
 }
 
 async function getBatteryRC_OCV(voltage, factor, tableName, count = 1) {
+    //console.log(`Fetching RC values for voltage: ${voltage.toFixed(4)}V, factor: ${factor}, table: ${tableName}, count: ${count}`);
     if (tableName !== "MainRCMapping" && tableName !== "AlternateRCMapping") {
         throw new Error("Invalid table name. Must be 'MainRCMapping' or 'AlternateRCMapping'.");
     }
@@ -165,7 +180,8 @@ async function getBatteryRC_OCV(voltage, factor, tableName, count = 1) {
     const rc_data = await fetchAndCacheRC(tableName);
     
     const sorted = rc_data.sort((a, b) => Math.abs(a.OCV - voltage) - Math.abs(b.OCV - voltage));
-    return sorted.slice(0, count);
+    const sliced = sorted.slice(0, count);
+    return sliced;
 }
 
 async function getLastMainBatteryState() {
@@ -283,6 +299,7 @@ module.exports = {
     insertSocSensorDataBulk,
     insertMainBatteryState,
     insertAlternateBatteryState,
+    insertKCLCorrectionState,
     getBatteryRC_SoC,
     getBatteryRC_OCV,
     getLastMainBatteryState,

@@ -10,7 +10,7 @@ function load_battery_constants(battery_type = 'LiNMC') {
 
 function soc_to_index(soc, factor = 3) {
     // Get index from a list of values from 0 to 100 with step of 0.001
-    const val = soc * 10**factor;
+    const val = soc * 100 * 10**factor;
     return Math.round(val) + 1;
 }
 

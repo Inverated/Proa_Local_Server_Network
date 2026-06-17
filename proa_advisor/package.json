@@ -15,6 +15,7 @@
     "csv-parser": "^3.2.1",
     "ejs": "^5.0.1",
     "express": "^5.2.1",
+    "kalman-filter": "^2.3.0",
     "nodemon": "^3.1.14",
     "serialport": "^13.0.0",
     "sqlite3": "^6.0.1"
