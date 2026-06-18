@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "better-sqlite3": "^12.10.0",
+    "cors": "^2.8.6",
     "csv-parser": "^3.2.1",
     "ejs": "^5.0.1",
     "express": "^5.2.1",

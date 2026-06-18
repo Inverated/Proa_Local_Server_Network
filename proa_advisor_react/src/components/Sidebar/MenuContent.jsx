@@ -12,16 +12,12 @@ import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded';
 import InfoRoundedIcon from '@mui/icons-material/InfoRounded';
 import HelpRoundedIcon from '@mui/icons-material/HelpRounded';
 import { useEffect, useState } from 'react';
-import Overview from '../MainBody/Overview';
-import PowerManagement from '../MainBody/PowerManagement';
-import StrainManagement from '../MainBody/StrainManagement';
-import ConnectedDevice from '../MainBody/ConnectedDevice';
 
 const mainListItems = [
-    { text: 'Overview', icon: <HomeRoundedIcon />, component: Overview },
-    { text: 'Power Management', icon: <AnalyticsRoundedIcon />, component: PowerManagement },
-    { text: 'Strain Gauge', icon: <PeopleRoundedIcon />, component: StrainManagement },
-    { text: 'Connected Devices', icon: <AssignmentRoundedIcon />, component: ConnectedDevice },
+    { text: 'Overview', icon: <HomeRoundedIcon /> },
+    { text: 'Power Management', icon: <AnalyticsRoundedIcon /> },
+    { text: 'Strain Gauge', icon: <PeopleRoundedIcon /> },
+    { text: 'Connected Devices', icon: <AssignmentRoundedIcon /> },
 ];
 
 const secondaryListItems = [
@@ -33,9 +29,8 @@ export default function MenuContent({ setSelectContent }) {
     const [selectedIndex, setSelectedIndex] = useState(0);
 
     function handleSelect(index) {
-        console.log(setSelectContent);
         setSelectedIndex(index);
-        setSelectContent(mainListItems[index].component);
+        setSelectContent(index);
     }
 
     return (

@@ -2,7 +2,9 @@ const express = require("express");
 
 const app = express();
 const port = 4000;
+const cors = require("cors");
 
+app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -26,6 +28,23 @@ startDB().then(() => {
     run_test();
     //startSerialReader();
 });
+
+const { add_client, get_clients, remove_client } = require("./handler/client_transmission");
+ 
+
+app.get("/data_stream", (req, res) => {
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.flushHeaders?.();
+
+    add_client(res);
+    res.write(": connected\n\n");
+
+    req.on("close", () => {
+        remove_client(res);
+    });
+})
 
 app.get("/", (req, res) => {
     res.send("Hello World!");

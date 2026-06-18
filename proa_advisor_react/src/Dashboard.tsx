@@ -18,6 +18,10 @@ import {
     treeViewCustomizations,
 } from './theme/customizations';
 import { useEffect, useState } from 'react';
+import Overview from './components/MainBody/Overview';
+import PowerManagement from './components/MainBody/PowerManagement';
+import StrainManagement from './components/MainBody/StrainManagement';
+import ConnectedDevice from './components/MainBody/ConnectedDevice';
 
 const xThemeComponents = {
     ...chartsCustomizations,
@@ -27,7 +31,7 @@ const xThemeComponents = {
 };
 
 export default function Dashboard(props: { disableCustomTheme?: boolean }) {
-    const [mainContent, setMainContent] = useState(MainGrid);
+    const [mainContent, setMainContent] = useState(-1);
 
     return (
         <AppTheme {...props} themeComponents={xThemeComponents}>
@@ -56,7 +60,13 @@ export default function Dashboard(props: { disableCustomTheme?: boolean }) {
                         }}
                     >
                         <Header />
-                        <mainContent.type {...mainContent.props} />
+                        {mainContent === -1 ? MainGrid() :
+                            mainContent === 0 ? <Overview /> :
+                                mainContent === 1 ? <PowerManagement /> :
+                                    mainContent === 2 ? <StrainManagement /> :
+                                        mainContent === 3 ? <ConnectedDevice /> :
+                                            <div>Unknown Content</div>
+                        }
                     </Stack>
                 </Box>
             </Box>

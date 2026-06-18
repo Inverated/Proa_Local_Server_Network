@@ -1,26 +1,43 @@
-import { LineChart } from '@mui/x-charts/LineChart';
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import ReactECharts from "echarts-for-react";
 
-export default function DynamicLineChart() {
-    const data = [10, 15, 12, 18, 22, 19, 25];
+export default function DynamicLineChart({ title, lineNames, xData, yData }: { title: string; lineNames: string[]; xData: number[]; yData: number[][] }) {
+    // yData contains an array of useState([])
+    const chartRef = useRef(null);
+    
+    const series = useMemo(() => {
+        return lineNames.map((lineName, index) => ({
+            name: lineName,
+            type: "line",
+            data: yData[index] || []
+        }));
+    }, [lineNames, yData]);
 
-    const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+    const option = {
+        title: {
+            text: title,
+        },
+        legend: {
+            top: 30,
+        },
+        xAxis: {
+            type: "category",
+            data: xData,
+        },
+        yAxis: {
+            type: "value",
+        },
+        series: series,
+        animations: true,
+    };
+
 
     return (
-        <LineChart
-            width={500}
-            height={300}
-            series={[
-                {
-                    data,
-                    label: 'Sales',
-                },
-            ]}
-            xAxis={[
-                {
-                    scaleType: 'point',
-                    data: labels,
-                },
-            ]}
+        <ReactECharts
+            ref={chartRef}
+            option={option}
+            style={{ height: '400px', width: '100%' }}
         />
     );
 }
