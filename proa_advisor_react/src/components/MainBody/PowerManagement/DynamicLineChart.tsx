@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import ReactECharts from "echarts-for-react";
 
-export default function DynamicLineChart({ title, lineNames, xData, yData }: { title: string; lineNames: string[]; xData: number[]; yData: number[][] }) {
+export default function DynamicLineChart({ title, lineNames, xData, yData, yUnit, yFixed }: { title: string; lineNames: string[]; xData: number[]; yData: number[][]; yUnit: string; yFixed?: boolean }) {
     // yData contains an array of useState([])
     const chartRef = useRef(null);
     
@@ -24,12 +24,32 @@ export default function DynamicLineChart({ title, lineNames, xData, yData }: { t
         xAxis: {
             type: "category",
             data: xData,
+            minInterval: 1,
+            axisLabel: {
+                formatter: (value: number) => `${Number(value).toFixed(2)} s`
+            }
         },
         yAxis: {
             type: "value",
+            scale: yFixed ? false : true,
+            axisLabel: {
+                formatter: (value: number) => `${value.toFixed(4)} ${yUnit}`
+            }
         },
         series: series,
         animations: true,
+        tooltip: {
+            trigger: "axis",
+            formatter: (params: any) => {
+                const xValue = params[0].axisValue;
+                const tooltipLines = params.map((param: any) => {
+                    const lineName = param.seriesName;
+                    const yValue = param.data;
+                    return `${lineName}: ${yValue.toFixed(4)} ${yUnit}`;
+                });
+                return `Time: ${Number(xValue).toFixed(2)} s<br>${tooltipLines.join("<br>")}`;
+            }
+        },
     };
 
 

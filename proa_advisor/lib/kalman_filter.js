@@ -4,7 +4,7 @@ const { adc_to_current, adc_to_voltage } = require("./adc_converter")
 const { load_battery_constants } = require('./kalman_filter_helper/helper');
 const { insertMainBatteryState, insertAlternateBatteryState, insertKCLCorrectionState, insertSocSensorData, insertSocSensorDataBulk, getLastMainBatteryState, getLastAlternateBatteryState, getRunId } = require("../model/db")
 const { getBatteryRC_OCV } = require("../model/db");
-const { streamPowerData } = require("../handler/power_management")
+const { write_to_clients } = require('../handler/client_transmission')
 
 /*
 ADS8688 Pinouts:
@@ -26,32 +26,57 @@ Batt 1: Main battery, LiNMC, 2s1p pack, 48.0V nominal, 104Ah
 Batt 2: Alternate battery, LiFePO4, 2s1p pack, 48.0V nominal, 50Ah
 */
 
-const SAMPLE_INTERVAL_BEFORE_WRITE  = 10000;
-const SAVE_STATES_TO_DB             = false;
-const SAVE_ADC_READINGS_TO_DB       = false;
-const SAMPLE_INTERVAL_MS            = 10; // Adjust this value as needed to simulate real-time data arrival
-let sample_count                    = 0;
-let current_run_id                  = null;
+const SAMPLE_INTERVAL_BEFORE_WRITE = 1000;
+const SAVE_STATES_TO_DB = false;
+const SAVE_ADC_READINGS_TO_DB = false;
+const SAMPLE_INTERVAL_MS = 30; // Adjust this value as needed to simulate real-time data arrival
+let sample_count = 0;
+let current_run_id = null;
 
-const MIDPOINT                  = 2 ** 15 - 1; // Midpoint of 16-bit ADC
-const VOLTAGE_DIVIDER_RATIO     = (100 + 20) / 20; // R1 + R2 / R2
-const BATT_CUTOFF_VOLTAGE       = 30; // Voltage below which battery is considered disconnected or fully drained
+const MIDPOINT = 2 ** 15 - 1; // Midpoint of 16-bit ADC
+const VOLTAGE_DIVIDER_RATIO = (100 + 20) / 20; // R1 + R2 / R2
+const BATT_CUTOFF_VOLTAGE = 30; // Voltage below which battery is considered disconnected or fully drained
 
-const avg_kcl_noise             = [];
-const KCL_CURRENT_THRESHOLD     = 0.05;
-let data_array                  = [];
-let main_battery                = null;
-let alternate_battery           = null;
-let kcl_corrector               = null;
+const avg_kcl_noise = [];
+const KCL_CURRENT_THRESHOLD = 0.05;
+let data_array = [];
+let main_battery = null;
+let alternate_battery = null;
+let kcl_corrector = null;
 
-const CURRENT_FLIP_THRESHOLD    = 5.0; // Threshold in Amps to detect if load or MPPT current is flipped due to wiring issues
-let is_load_flipped             = false;
-let is_mppt_flipped             = false;
+const CURRENT_FLIP_THRESHOLD = 5.0; // Threshold in Amps to detect if load or MPPT current is flipped due to wiring issues
+let is_load_flipped = false;
+let is_mppt_flipped = false;
 
+let activeUpdates = 0;  // Detect async update falling behind
+let total_current = 0;
+let total_time = 0;
 
-let activeUpdates       = 0;  // Detect async update falling behind
-let total_current       = 0;
-let total_time          = 0;
+let time_start = Date.now();
+let payLoad = {};
+/*
+type PowerData = {
+    timestamp: number;
+    voltageReadingMain?: number;
+    correctedVoltageMain?: number;
+    OCVMain?: number;
+    socMain?: number;
+    voltageReadingAlt?: number;
+    correctedVoltageAlt?: number;
+    OCVAlt?: number;
+    socAlt?: number;
+    currentMPPT?: number;
+    currentLoad?: number;
+    currentNetMain?: number;
+    currentNetAlt?: number;
+    correctedCurrentMPPT?: number;
+*/
+const MEDIAN_WINDOW_SIZE = 10;
+let window_counter = 0;
+let time_diff_window = [];
+let mppt_out_window = []; let load_in_window = [];
+let batt1_net_window = []; let batt2_net_window = [];
+let batt1_v_window = []; let batt2_v_window = [];
 
 async function onNewSample(sample, log = false) {
     activeUpdates++;
@@ -73,7 +98,17 @@ async function onNewSample(sample, log = false) {
         let batt1_v = adc_to_voltage(a6, 5) * VOLTAGE_DIVIDER_RATIO;
         let batt2_v = adc_to_voltage(a7, 5) * VOLTAGE_DIVIDER_RATIO;
 
-        [mppt_out, load_in, batt1_net, batt2_net, batt1_v, batt2_v] = detectAndCorrectFlips(mppt_out, load_in, batt1_net, batt2_net, batt1_v, batt2_v);
+        try {
+            [mppt_out, load_in, batt1_net, batt2_net, batt1_v, batt2_v] = detectAndCorrectFlips(mppt_out, load_in, batt1_net, batt2_net, batt1_v, batt2_v);
+        } catch (err) {
+            console.error(err.message);
+            return; // Skip this sample due to uncorrectable KCL violation
+        }
+        mppt_out = mppt_out < KCL_CURRENT_THRESHOLD ? 0 : mppt_out;
+        load_in = load_in < KCL_CURRENT_THRESHOLD ? 0 : load_in;
+        batt1_net = Math.abs(batt1_net) < KCL_CURRENT_THRESHOLD ? 0 : batt1_net;
+        batt2_net = Math.abs(batt2_net) < KCL_CURRENT_THRESHOLD ? 0 : batt2_net;
+
 
         total_current += load_in;
         total_time += time_diff_us / 1e6;
@@ -152,21 +187,73 @@ async function onNewSample(sample, log = false) {
             }
         }
 
-        if (!kcl_corrector) {
-            kcl_corrector = new CurrentKCLCorrector({
-                noise: {
-                    kcl: avg_kcl_noise.length > 0 ? avg_kcl_noise.reduce((a, b) => a + b, 0) / avg_kcl_noise.length : 1e-4,
-                },
-            }).init();
-            console.log(`Initialized KCL Corrector with noise: ${kcl_corrector.noise.kcl.toExponential(2)}A^2`);
+        if (window_counter < MEDIAN_WINDOW_SIZE) {
+            time_diff_window.push(Number(time_diff_us));
+            mppt_out_window.push(Number(mppt_out));
+            load_in_window.push(Number(load_in));
+            batt1_net_window.push(Number(batt1_net));
+            batt2_net_window.push(Number(batt2_net));
+            batt1_v_window.push(Number(batt1_v));
+            batt2_v_window.push(Number(batt2_v));
+            window_counter++;
+            return; // Wait until we have enough samples to compute median
         }
 
-        // Tuning KCL process noise based on active channels
+        await updateFilter(
+            time_diff_window.reduce((a, b) => a + b, 0),
+            getMedian(mppt_out_window),
+            getMedian(load_in_window),
+            getMedian(batt1_net_window),
+            getMedian(batt2_net_window),
+            getMedian(batt1_v_window),
+            getMedian(batt2_v_window)
+        );
+        time_diff_window = [];
+        mppt_out_window = [];
+        load_in_window = [];
+        batt1_net_window = [];
+        batt2_net_window = [];
+        batt1_v_window = [];
+        batt2_v_window = [];
+        window_counter = 0;
+
+    } finally {
+        activeUpdates--;
+    }
+}
+
+async function updateFilter(time_diff_us, mppt_out, load_in, batt1_net, batt2_net, batt1_v, batt2_v) {
+    if (!kcl_corrector) {
+        kcl_corrector = new CurrentKCLCorrector({
+            noise: {
+                kcl: avg_kcl_noise.length > 0 ? avg_kcl_noise.reduce((a, b) => a + b, 0) / avg_kcl_noise.length : 1e-4,
+            },
+        }).init();
+        console.log(`Initialized KCL Corrector with noise: ${kcl_corrector.noise.kcl.toExponential(2)}A^2`);
+    }
+
+    // Payload to stream
+    if (sample_count % SAMPLE_INTERVAL_BEFORE_WRITE === 0) {
+        payLoad = {
+            timestamp: (Date.now() - time_start) / 1000, // Time in seconds since start
+        }
+    }
+
+    // Tuning KCL process noise based on active channels
+    let corrected_currents = {
+        loadCorrected: load_in,
+        chargeCorrected: mppt_out,
+        battery1NetCorrected: batt1_net,
+        battery2NetCorrected: batt2_net,
+    };
+
+    if (mppt_out - load_in + batt1_net + batt2_net > 0.2) { // only apply correction when KCL violation is significant
+        console.log(`KCL violation detected: ${batt1_net.toFixed(5)} + ${batt2_net.toFixed(5)} - ${load_in.toFixed(5)} + ${mppt_out.toFixed(5)} = ${(batt1_net + batt2_net - load_in + mppt_out).toFixed(5)}`);
         const isActive = {};
-        isActive.load   = load_in > KCL_CURRENT_THRESHOLD;
+        isActive.load = load_in > KCL_CURRENT_THRESHOLD;
         isActive.charge = mppt_out > KCL_CURRENT_THRESHOLD;
-        isActive.bat1   = Math.abs(batt1_net) > KCL_CURRENT_THRESHOLD;
-        isActive.bat2   = Math.abs(batt2_net) > KCL_CURRENT_THRESHOLD;
+        isActive.bat1 = Math.abs(batt1_net) > KCL_CURRENT_THRESHOLD;
+        isActive.bat2 = Math.abs(batt2_net) > KCL_CURRENT_THRESHOLD;
         kcl_corrector.clampNoise(isActive);
 
         // Store updated state, cov mtx, process noise for recovery later if needed
@@ -178,104 +265,125 @@ async function onNewSample(sample, log = false) {
             battery1NetCurrent: batt1_net,
             battery2NetCurrent: batt2_net,
         });
-
+        
         if (!state || !biases || !currents) {
             throw new Error('KCL Corrector update failed to return valid state, biases, or currents.');
         }
+        console.log(currents);
+        corrected_currents = currents;
+    }
+    
+    if (sample_count % SAMPLE_INTERVAL_BEFORE_WRITE === 0) {
+        if (SAVE_STATES_TO_DB) {
+            await insertKCLCorrectionState(current_run_id, state.covariance, biases);
+        }
+        console.log("\nInput values - \tMain: " + batt1_v.toFixed(5) + "V, Alt: " + batt2_v.toFixed(5) + "V, \t\tLoad: " + load_in.toFixed(5) + "A, \tCharge: " + mppt_out.toFixed(5) + "A, \tBatt1: " + batt1_net.toFixed(5) + "A, \tBatt2: " + batt2_net.toFixed(5) + "A");
+        console.log(`Counter: ${sample_count}, KCL Corrected Currents: \t\t\tLoad: ${corrected_currents.loadCorrected.toFixed(5)}A, \tCharge: ${corrected_currents.chargeCorrected.toFixed(5)}A, \tBatt1: ${corrected_currents.battery1NetCorrected.toFixed(5)}A, \tBatt2: ${corrected_currents.battery2NetCorrected.toFixed(5)}A`);
+
+        payLoad.currentLoad = load_in;
+        payLoad.currentMPPT = mppt_out;
+        payLoad.currentNetMain = batt1_net;
+        payLoad.currentNetAlt = batt2_net;
+        payLoad.correctedCurrentLoad = corrected_currents.loadCorrected;
+        payLoad.correctedCurrentMPPT = corrected_currents.chargeCorrected;
+        payLoad.correctedCurrentNetMain = corrected_currents.battery1NetCorrected;
+        payLoad.correctedCurrentNetAlt = corrected_currents.battery2NetCorrected;
+    }
+
+
+    const main_sensor_readings = {
+        I_batt_main: batt1_net,
+        I_batt_alternate: batt2_net,
+        I_mppt: mppt_out,
+        I_load: load_in,
+        V_batt_main: batt1_v,
+        V_batt_alternate: batt2_v
+    };
+
+    if (batt1_v > BATT_CUTOFF_VOLTAGE) {
+        const { name, state, state_vector, rc, voltageEstimate, voltageResidual, netCurrent } = await main_battery.update({
+            dt: time_diff_us / 1e6,
+            voltage: batt1_v,
+            netCurrent: corrected_currents.battery1NetCorrected,
+        }, sample_count % SAMPLE_INTERVAL_BEFORE_WRITE === 0);
 
         if (sample_count % SAMPLE_INTERVAL_BEFORE_WRITE === 0) {
             if (SAVE_STATES_TO_DB) {
-                await insertKCLCorrectionState(current_run_id, state.covariance, biases);    
+                await insertMainBatteryState(current_run_id, state_vector, state.covariance, main_sensor_readings);
             }
-            console.log("\nInput values - \tMain: " + batt1_v.toFixed(5) + "V, Alt: " + batt2_v.toFixed(5) + "V, \t\tLoad: " + load_in.toFixed(5) + "A, \tCharge: " + mppt_out.toFixed(5) + "A, \tBatt1: " + batt1_net.toFixed(5) + "A, \tBatt2: " + batt2_net.toFixed(5) + "A");
-            console.log(`Counter: ${sample_count}, KCL Corrected Currents: \t\t\tLoad: ${currents.loadCorrected.toFixed(5)}A, \tCharge: ${currents.chargeCorrected.toFixed(5)}A, \tBatt1: ${currents.battery1NetCorrected.toFixed(5)}A, \tBatt2: ${currents.battery2NetCorrected.toFixed(5)}A`);
+            console.log(`Counter: ${sample_count}, \tSoC Main: ${(100 * state_vector.soc).toFixed(5)}%, \tCorrected Main: ${voltageEstimate.toFixed(5)}V, Correct OCV: ${rc.OCV.toFixed(5)}V, \tCurrent Main: ${corrected_currents.battery1NetCorrected.toFixed(5)}A, \tVoltage Residual: ${voltageResidual.toFixed(5)}V`);
+            payLoad.voltageReadingMain = batt1_v;
+            payLoad.correctedVoltageMain = voltageEstimate;
+            payLoad.OCVMain = rc.OCV;
+            payLoad.socMain = state_vector.soc * 100;
         }
+    }
 
-        const main_sensor_readings = {
-            I_batt_main: batt1_net,
-            I_batt_alternate: batt2_net,
-            I_mppt: mppt_out,
-            I_load: load_in,
-            V_batt_main: batt1_v,
-            V_batt_alternate: batt2_v
-        };
-
-        if (batt1_v > BATT_CUTOFF_VOLTAGE) {
-            const { name, state, state_vector, rc, voltageEstimate, voltageResidual, netCurrent } = await main_battery.update({
-                dt: time_diff_us / 1e6,
-                voltage: batt1_v,
-                netCurrent: currents.battery1NetCorrected,
-            }, sample_count % SAMPLE_INTERVAL_BEFORE_WRITE === 0);
-
-            if (sample_count % SAMPLE_INTERVAL_BEFORE_WRITE === 0) {
-                if (SAVE_STATES_TO_DB) {
-                    await insertMainBatteryState(current_run_id, state_vector, state.covariance, main_sensor_readings);
-                }
-                console.log(`Counter: ${sample_count}, \tSoC Main: ${(100 * state_vector.soc).toFixed(5)}%, \tCorrected Main: ${voltageEstimate.toFixed(5)}V, \tCurrent Main: ${currents.battery1NetCorrected.toFixed(5)}A, \tVoltage Residual: ${voltageResidual.toFixed(5)}V`);
-                streamPowerData(Date.now(), batt1_v, voltageEstimate);
+    if (batt2_v > BATT_CUTOFF_VOLTAGE) {
+        const { name, state, state_vector, rc, voltageEstimate, voltageResidual, netCurrent } = await alternate_battery.update({
+            dt: time_diff_us / 1e6,
+            voltage: batt2_v,
+            netCurrent: corrected_currents.battery2NetCorrected,
+        });
+        if (sample_count % SAMPLE_INTERVAL_BEFORE_WRITE === 0) {
+            if (SAVE_STATES_TO_DB) {
+                await insertAlternateBatteryState(current_run_id, state_vector, state.covariance, alternate_sensor_readings);
             }
+            console.log(`Counter: ${sample_count}, \tSoC Alternate: ${(100 * state_vector.soc).toFixed(5)}%, \tCorrected Alt: ${voltageEstimate.toFixed(5)}V, Correct OCV: ${rc.OCV.toFixed(5)}V, \tCurrent Alternate: ${corrected_currents.battery2NetCorrected.toFixed(5)}A, \tVoltage Residual: ${voltageResidual.toFixed(5)}V`);
+            payLoad.voltageReadingAlt = batt2_v;
+            payLoad.correctedVoltageAlt = voltageEstimate;
+            payLoad.OCVAlt = rc.OCV;
+            payLoad.socAlt = state_vector.soc * 100;
         }
+    }
 
-        if (batt2_v > BATT_CUTOFF_VOLTAGE) {
-            const { name, state, state_vector, rc, voltageEstimate, voltageResidual, netCurrent } = await alternate_battery.update({
-                dt: time_diff_us / 1e6,
-                voltage: batt2_v,
-                netCurrent: currents.battery2NetCorrected,
-            });
-            if (sample_count % SAMPLE_INTERVAL_BEFORE_WRITE === 0) {
-                if (SAVE_STATES_TO_DB) {
-                    await insertAlternateBatteryState(current_run_id, state_vector, state.covariance, alternate_sensor_readings);
-                }
-                console.log(`Counter: ${sample_count}, \tSoC Alternate: ${(100 * state_vector.soc).toFixed(5)}%, \tCorrected Alt: ${voltageEstimate.toFixed(5)}V, \tCurrent Alternate: ${currents.battery2NetCorrected.toFixed(5)}A, \tVoltage Residual: ${voltageResidual.toFixed(5)}V`);
-            }
-        }
+    if (sample_count % SAMPLE_INTERVAL_BEFORE_WRITE === 0) {
+        write_to_clients(payLoad);
+        payLoad = {};
+    }
 
-        sample_count++;
-        if (sample_count % SAMPLE_INTERVAL_BEFORE_WRITE === 0 && SAVE_ADC_READINGS_TO_DB) {
-            await insertSocSensorDataBulk(data_array);
-            data_array = [];
-            //console.log(`Total Current: ${total_current.toFixed(5)}A, Total Time: ${total_time.toFixed(5)}s`);
-        }            
+    sample_count++;
+    if (sample_count % SAMPLE_INTERVAL_BEFORE_WRITE === 0 && SAVE_ADC_READINGS_TO_DB) {
+        await insertSocSensorDataBulk(data_array);
+        data_array = [];
+        //console.log(`Total Current: ${total_current.toFixed(5)}A, Total Time: ${total_time.toFixed(5)}s`);
+    }
 
-        
-        if (sample_count % SAMPLE_INTERVAL_BEFORE_WRITE === 0 && SAMPLE_INTERVAL_MS > 0) {
-            await new Promise(resolve => setTimeout(resolve, SAMPLE_INTERVAL_MS)); // Simulate delay for real-time processing
-        }
-    } finally {
-        activeUpdates--;
+    if (sample_count % SAMPLE_INTERVAL_BEFORE_WRITE === 0 && SAMPLE_INTERVAL_MS > 0) {
+        await new Promise(resolve => setTimeout(resolve, SAMPLE_INTERVAL_MS)); // Simulate delay for real-time processing
     }
 }
 
 function detectAndCorrectFlips(mppt_out, load_in, batt1_net, batt2_net, batt1_v, batt2_v) {
     if (batt1_v < BATT_CUTOFF_VOLTAGE) {
-            batt1_v = 0;
-            batt1_net = 0;
-        }
-        if (batt2_v < BATT_CUTOFF_VOLTAGE) {
-            batt2_v = 0;
-            batt2_net = 0;
-        }
+        batt1_v = 0;
+        batt1_net = 0;
+    }
+    if (batt2_v < BATT_CUTOFF_VOLTAGE) {
+        batt2_v = 0;
+        batt2_net = 0;
+    }
 
-        if (load_in < -CURRENT_FLIP_THRESHOLD) {
-            is_load_flipped = true;
-            load_in = -load_in;
-        }
-        if (mppt_out < -CURRENT_FLIP_THRESHOLD) {
-            is_mppt_flipped = true;
-            mppt_out = -mppt_out;
-        }
+    if (load_in < -CURRENT_FLIP_THRESHOLD) {
+        is_load_flipped = true;
+        load_in = -load_in;
+    }
+    if (mppt_out < -CURRENT_FLIP_THRESHOLD) {
+        is_mppt_flipped = true;
+        mppt_out = -mppt_out;
+    }
 
-        if (batt1_net + batt2_net - load_in + mppt_out > 2) {
-            if ((-batt1_net) + batt2_net - load_in + mppt_out < 1) {
-                //console.warn(`KCL violation detected: ${(batt1_net).toFixed(5)} + ${batt2_net.toFixed(5)} - ${load_in.toFixed(5)} + ${mppt_out.toFixed(5)} = ${(batt1_net + batt2_net - load_in + mppt_out).toFixed(5)}`);
-                batt1_net = -batt1_net; // Flip the sign of batt1_net to correct the KCL violation
-            } else if (batt1_net + (-batt2_net) - load_in + mppt_out < 1) {
-                //console.warn(`KCL violation detected: ${batt1_net.toFixed(5)} + ${(batt2_net).toFixed(5)} - ${load_in.toFixed(5)} + ${mppt_out.toFixed(5)} = ${(batt1_net + batt2_net - load_in + mppt_out).toFixed(5)}`);
-                batt2_net = -batt2_net; // Flip the sign of batt2_net to correct the KCL violation
-            } else {
-                throw new Error("KCL violation due to miswiring of MPPT or Load current sensor detected and cannot be corrected. Check wiring.");
-            }
+    if (batt1_net + batt2_net - load_in + mppt_out > 2) {
+        if ((-batt1_net) + batt2_net - load_in + mppt_out < 1) {
+            //console.warn(`KCL violation detected: ${(batt1_net).toFixed(5)} + ${batt2_net.toFixed(5)} - ${load_in.toFixed(5)} + ${mppt_out.toFixed(5)} = ${(batt1_net + batt2_net - load_in + mppt_out).toFixed(5)}`);
+            batt1_net = -batt1_net; // Flip the sign of batt1_net to correct the KCL violation
+        } else if (batt1_net + (-batt2_net) - load_in + mppt_out < 1) {
+            //console.warn(`KCL violation detected: ${batt1_net.toFixed(5)} + ${(batt2_net).toFixed(5)} - ${load_in.toFixed(5)} + ${mppt_out.toFixed(5)} = ${(batt1_net + batt2_net - load_in + mppt_out).toFixed(5)}`);
+            batt2_net = -batt2_net; // Flip the sign of batt2_net to correct the KCL violation
+        } else {
+            throw new Error("KCL violation due to miswiring of MPPT or Load current sensor detected and cannot be corrected. Check wiring.");
         }
+    }
     return [mppt_out, load_in, batt1_net, batt2_net, batt1_v, batt2_v];
 }
 
@@ -284,6 +392,12 @@ async function getCurrentRunId() {
         current_run_id = await getRunId();
     }
     return current_run_id;
+}
+
+function getMedian(arr) {
+    const sorted = [...arr].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
 module.exports = {

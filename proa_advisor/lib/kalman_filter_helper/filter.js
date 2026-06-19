@@ -35,8 +35,8 @@ class Battery2RCEKF {
         this.Qn = this.capacityAh * 3600;
 
         this.noise = {
-            socProcess: options.noise?.socProcess ?? 1e-8,
-            rcProcess: options.noise?.rcProcess ?? 1e-7,
+            socProcess: options.noise?.socProcess ?? 1e-24,
+            rcProcess: options.noise?.rcProcess ?? 1e-24,
             voltage: options.noise?.voltage ?? 1e-4,
         };
 
@@ -47,7 +47,7 @@ class Battery2RCEKF {
         };
 
         this.initialCovariance = options.initialCovariance || diag([
-            0.02,
+            1e-4,
             1e-8,
             1e-8,
         ]);

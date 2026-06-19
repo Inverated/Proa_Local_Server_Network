@@ -21,7 +21,7 @@ function remove_client(client) {
 function write_to_clients(data) {
     // Convert an object to a string and send it to all clients
     const message = `data: ${JSON.stringify(data)}\n\n`;
-    console.log(`Writing to ${clients.size} clients: ${message}`);
+    console.log(`Writing to ${clients.size} clients`);
     clients.forEach(client => {
         client.write(message);
     });
