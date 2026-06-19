@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import DynamicLineChart from "./DynamicLineChart";
-
+import Grid from '@mui/material/Grid';
 
 /* Charts:
 1. Voltage Main (actual vs corrected)
@@ -40,7 +40,7 @@ export default function PowerManagement() {
     const [correctedVoltageMain, setCorrectedVoltageMain] = useState<number[]>([]);
     const [correctedVoltageAlt, setCorrectedVoltageAlt] = useState<number[]>([]);
     const [OCVAlt, setOCVAlt] = useState<number[]>([]);
-    
+
     const [socMain, setSocMain] = useState<number[]>([]);
     const [socAlt, setSocAlt] = useState<number[]>([]);
 
@@ -70,7 +70,7 @@ export default function PowerManagement() {
             }
             if (data.socMain !== undefined) {
                 setSocMain((prev) => [...prev, data.socMain as number].slice(-ARRAY_LENGTH));
-            }  
+            }
             if (data.voltageReadingAlt !== undefined) {
                 setVoltageReadingAlt((prev) => [...prev, data.voltageReadingAlt as number].slice(-ARRAY_LENGTH));
             }
@@ -97,7 +97,7 @@ export default function PowerManagement() {
             }
             if (data.correctedCurrentLoad !== undefined) {
                 setCorrectedCurrentLoad((prev) => [...prev, data.correctedCurrentLoad as number].slice(-ARRAY_LENGTH));
-            }   
+            }
             if (data.correctedCurrentMPPT !== undefined) {
                 setCorrectedCurrentMPPT((prev) => [...prev, data.correctedCurrentMPPT as number].slice(-ARRAY_LENGTH));
             }
@@ -119,23 +119,91 @@ export default function PowerManagement() {
         <div className="power-management">
             <h2>Power Management</h2>
             <p>Manage your power settings and monitor energy consumption.</p>
-            <div className="charts-container">
-                <DynamicLineChart title="Main Battery Voltage" lineNames={['Actual', 'Corrected', 'OCV']} xData={xData} yData={[voltageReadingMain, correctedVoltageMain, OCVMain]} yUnit="V" />
-                <DynamicLineChart title="Alt Battery Voltage" lineNames={['Actual', 'Corrected', 'OCV']} xData={xData} yData={[voltageReadingAlt, correctedVoltageAlt, OCVAlt]} yUnit="V" />
-            </div>
-            <div className="charts-container">
-                <DynamicLineChart title="Main Battery SOC" lineNames={['SOC']} xData={xData} yData={[socMain]} yUnit="%" yFixed={true} />
-                <DynamicLineChart title="Alt Battery SOC" lineNames={['SOC']} xData={xData} yData={[socAlt]} yUnit="%" yFixed={true} />
-            </div>
-            <div className="charts-container">
-                <DynamicLineChart title="Current Load" lineNames={['Actual', 'Corrected']} xData={xData} yData={[currentLoad, correctedCurrentLoad]} yUnit="A" />
-                <DynamicLineChart title="Current MPPT" lineNames={['Actual', 'Corrected']} xData={xData} yData={[currentMPPT, correctedCurrentMPPT]} yUnit="A" />
-            </div>
-            <div className="charts-container">
-                <DynamicLineChart title="Current Net Main" lineNames={['Actual', 'Corrected']} xData={xData} yData={[currentNetMain, correctedCurrentNetMain]} yUnit="A" />
-                <DynamicLineChart title="Current Net Alt" lineNames={['Actual', 'Corrected']} xData={xData} yData={[currentNetAlt, correctedCurrentNetAlt]} yUnit="A" />
-            </div>
 
+            <Grid container spacing={2} columns={12}>
+                
+                <Grid size={{ xs: 12, lg: 6 }}>
+                    <DynamicLineChart
+                        title="Main Battery Voltage"
+                        lineNames={['Actual', 'Corrected', 'OCV']}
+                        xData={xData}
+                        yData={[voltageReadingMain, correctedVoltageMain, OCVMain]}
+                        yUnit="V"
+                    />
+                </Grid>
+
+                <Grid size={{ xs: 12, lg: 6 }}>
+                    <DynamicLineChart
+                        title="Alt Battery Voltage"
+                        lineNames={['Actual', 'Corrected', 'OCV']}
+                        xData={xData}
+                        yData={[voltageReadingAlt, correctedVoltageAlt, OCVAlt]}
+                        yUnit="V"
+                    />
+                </Grid>
+
+                <Grid size={{ xs: 12, lg: 6 }}>
+                    <DynamicLineChart
+                        title="Main Battery SOC"
+                        lineNames={['SOC']}
+                        xData={xData}
+                        yData={[socMain]}
+                        yUnit="%"
+                        yFixed={true}
+                    />
+                </Grid>
+
+                <Grid size={{ xs: 12, lg: 6 }}>
+                    <DynamicLineChart
+                        title="Alt Battery SOC"
+                        lineNames={['SOC']}
+                        xData={xData}
+                        yData={[socAlt]}
+                        yUnit="%"
+                        yFixed={true}
+                    />
+                </Grid>
+
+                <Grid size={{ xs: 12, lg: 6 }}>
+                    <DynamicLineChart
+                        title="Current Load"
+                        lineNames={['Actual', 'Corrected']}
+                        xData={xData}
+                        yData={[currentLoad, correctedCurrentLoad]}
+                        yUnit="A"
+                    />
+                </Grid>
+
+                <Grid size={{ xs: 12, lg: 6 }}>
+                    <DynamicLineChart
+                        title="Current MPPT"
+                        lineNames={['Actual', 'Corrected']}
+                        xData={xData}
+                        yData={[currentMPPT, correctedCurrentMPPT]}
+                        yUnit="A"
+                    />
+                </Grid>
+
+                <Grid size={{ xs: 12, lg: 6 }}>
+                    <DynamicLineChart
+                        title="Current Net Main"
+                        lineNames={['Actual', 'Corrected']}
+                        xData={xData}
+                        yData={[currentNetMain, correctedCurrentNetMain]}
+                        yUnit="A"
+                    />
+                </Grid>
+
+                <Grid size={{ xs: 12, lg: 6 }}>
+                    <DynamicLineChart
+                        title="Current Net Alt"
+                        lineNames={['Actual', 'Corrected']}
+                        xData={xData}
+                        yData={[currentNetAlt, correctedCurrentNetAlt]}
+                        yUnit="A"
+                    />
+                </Grid>
+            </Grid>
         </div>
     );
 }

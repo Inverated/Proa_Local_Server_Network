@@ -1,10 +1,12 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef } from "react";
 import ReactECharts from "echarts-for-react";
+import Card from '@mui/material/Card';
+import CardContent from '@mui/material/CardContent';
 
 export default function DynamicLineChart({ title, lineNames, xData, yData, yUnit, yFixed }: { title: string; lineNames: string[]; xData: number[]; yData: number[][]; yUnit: string; yFixed?: boolean }) {
     // yData contains an array of useState([])
     const chartRef = useRef(null);
-    
+
     const series = useMemo(() => {
         return lineNames.map((lineName, index) => ({
             name: lineName,
@@ -15,9 +17,6 @@ export default function DynamicLineChart({ title, lineNames, xData, yData, yUnit
 
 
     const option = {
-        title: {
-            text: title,
-        },
         legend: {
             top: 30,
         },
@@ -27,7 +26,7 @@ export default function DynamicLineChart({ title, lineNames, xData, yData, yUnit
             minInterval: 1,
             axisLabel: {
                 formatter: (value: number) => `${Number(value).toFixed(2)} s`
-            }
+            },
         },
         yAxis: {
             type: "value",
@@ -54,10 +53,15 @@ export default function DynamicLineChart({ title, lineNames, xData, yData, yUnit
 
 
     return (
-        <ReactECharts
-            ref={chartRef}
-            option={option}
-            style={{ height: '400px', width: '100%' }}
-        />
+        <Card variant="outlined" sx={{ width: '100%' }}>
+            <CardContent>
+                <h3>{title}</h3>
+                <ReactECharts
+                    ref={chartRef}
+                    option={option}
+                    style={{ height: '400px', width: '100%' }}
+                />
+            </CardContent>
+        </Card>
     );
 }
