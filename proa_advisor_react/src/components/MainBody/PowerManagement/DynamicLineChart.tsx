@@ -3,8 +3,25 @@ import ReactECharts from "echarts-for-react";
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 
-export default function DynamicLineChart({ title, lineNames, xData, yData, yUnit, yFixed }: { title: string; lineNames: string[]; xData: number[]; yData: number[][]; yUnit: string; yFixed?: boolean }) {
+type DynamicLineChartProps = {
+    title: string;
+    lineNames: string[];
+    xAxis: {
+        xData: number[];
+    };
+    yAxis: {
+        yData: number[][];
+        yUnit: string;
+        significantDigits?: number;
+        yTitle?: string;
+        yFixed?: boolean;
+    };
+};
+
+export default function DynamicLineChart({ title, lineNames, xAxis, yAxis }: DynamicLineChartProps) {
     // yData contains an array of useState([])
+    const { xData } = xAxis;
+    const { yData, yUnit, significantDigits = 4, yTitle, yFixed = false } = yAxis;
     const chartRef = useRef(null);
 
     const series = useMemo(() => {
@@ -22,18 +39,24 @@ export default function DynamicLineChart({ title, lineNames, xData, yData, yUnit
         },
         xAxis: {
             type: "category",
+            name: "Time Passed" + (xData[xData.length - 1] < 60 ? " (s)" : " (min)"),
+            nameLocation: "middle",
+            nameGap: 30,
             data: xData,
             minInterval: 1,
             axisLabel: {
-                formatter: (value: number) => `${Number(value).toFixed(2)} s`
+                formatter: (value: number) => value < 60 ? `${Number(value).toFixed(2)} s` : `${(value / 60).toFixed(2)} min`
             },
         },
         yAxis: {
             type: "value",
             scale: yFixed ? false : true,
             axisLabel: {
-                formatter: (value: number) => `${value.toFixed(4)} ${yUnit}`
-            }
+                formatter: (value: number) => `${value.toFixed(significantDigits)} ${yUnit}`
+            },
+            name: yTitle ? `${yTitle} (${yUnit})` : "",
+            nameLocation: "middle",
+            nameGap: 30
         },
         series: series,
         animations: true,
@@ -44,7 +67,7 @@ export default function DynamicLineChart({ title, lineNames, xData, yData, yUnit
                 const tooltipLines = params.map((param: any) => {
                     const lineName = param.seriesName;
                     const yValue = param.data;
-                    return `${lineName}: ${yValue.toFixed(4)} ${yUnit}`;
+                    return `${lineName}: ${yValue.toFixed(significantDigits)} ${yUnit}`;
                 });
                 return `Time: ${Number(xValue).toFixed(2)} s<br>${tooltipLines.join("<br>")}`;
             }

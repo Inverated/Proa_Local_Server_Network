@@ -26,10 +26,10 @@ Batt 1: Main battery, LiNMC, 2s1p pack, 48.0V nominal, 104Ah
 Batt 2: Alternate battery, LiFePO4, 2s1p pack, 48.0V nominal, 50Ah
 */
 
-const SAMPLE_INTERVAL_BEFORE_WRITE = 1000;
+const SAMPLE_INTERVAL_BEFORE_WRITE = 5000;
 const SAVE_STATES_TO_DB = false;
 const SAVE_ADC_READINGS_TO_DB = false;
-const SAMPLE_INTERVAL_MS = 30; // Adjust this value as needed to simulate real-time data arrival
+const SAMPLE_INTERVAL_MS = 10; // Adjust this value as needed to simulate real-time data arrival
 let sample_count = 0;
 let current_run_id = null;
 
@@ -111,7 +111,7 @@ async function onNewSample(sample, log = false) {
 
 
         total_current += load_in;
-        total_time += time_diff_us / 1e6;
+        total_time += time_diff_us / 1e6; // Convert microseconds to seconds
 
         data_array.push({
             run_id: current_run_id,
@@ -235,7 +235,8 @@ async function updateFilter(time_diff_us, mppt_out, load_in, batt1_net, batt2_ne
     // Payload to stream
     if (sample_count % SAMPLE_INTERVAL_BEFORE_WRITE === 0) {
         payLoad = {
-            timestamp: (Date.now() - time_start) / 1000, // Time in seconds since start
+            //timestamp: (Date.now() - time_start) / 1000, // Time in seconds since start
+            timestamp: total_time
         }
     }
 
@@ -247,8 +248,7 @@ async function updateFilter(time_diff_us, mppt_out, load_in, batt1_net, batt2_ne
         battery2NetCorrected: batt2_net,
     };
 
-    if (mppt_out - load_in + batt1_net + batt2_net > 0.2) { // only apply correction when KCL violation is significant
-        console.log(`KCL violation detected: ${batt1_net.toFixed(5)} + ${batt2_net.toFixed(5)} - ${load_in.toFixed(5)} + ${mppt_out.toFixed(5)} = ${(batt1_net + batt2_net - load_in + mppt_out).toFixed(5)}`);
+    //if (mppt_out - load_in + batt1_net + batt2_net > 0.2) { // only apply correction when KCL violation is significant
         const isActive = {};
         isActive.load = load_in > KCL_CURRENT_THRESHOLD;
         isActive.charge = mppt_out > KCL_CURRENT_THRESHOLD;
@@ -269,9 +269,8 @@ async function updateFilter(time_diff_us, mppt_out, load_in, batt1_net, batt2_ne
         if (!state || !biases || !currents) {
             throw new Error('KCL Corrector update failed to return valid state, biases, or currents.');
         }
-        console.log(currents);
         corrected_currents = currents;
-    }
+    //}
     
     if (sample_count % SAMPLE_INTERVAL_BEFORE_WRITE === 0) {
         if (SAVE_STATES_TO_DB) {

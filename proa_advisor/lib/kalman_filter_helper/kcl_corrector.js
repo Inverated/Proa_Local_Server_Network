@@ -17,10 +17,10 @@ class CurrentKCLCorrector {
 
             // Tune these.
             // Larger = this sensor is allowed to drift more.
-            bLoadProcess: options.noise?.bLoadProcess ?? 1e-9,
-            bChargeProcess: options.noise?.bChargeProcess ?? 1e-7,
-            bBat1Process: options.noise?.bBat1Process ?? 1e-7,
-            bBat2Process: options.noise?.bBat2Process ?? 1e-7,
+            bLoadProcess: options.noise?.bLoadProcess ?? 1e-12,
+            bChargeProcess: options.noise?.bChargeProcess ?? 1e-12,
+            bBat1Process: options.noise?.bBat1Process ?? 1e-18,
+            bBat2Process: options.noise?.bBat2Process ?? 1e-18,
         };
 
         this.initial = {
@@ -31,10 +31,10 @@ class CurrentKCLCorrector {
         };
 
         this.initialCovariance = options.initialCovariance || diag([
-            0.05, // bLoad uncertainty
-            0.05, // bCharge uncertainty
-            0.05, // bBat1 uncertainty
-            0.05, // bBat2 uncertainty
+            1e-4, // bLoad uncertainty
+            1e-4, // bCharge uncertainty
+            1e-5, // bBat1 uncertainty
+            1e-5, // bBat2 uncertainty
         ]);
 
         this.ctx = null;
@@ -152,22 +152,45 @@ class CurrentKCLCorrector {
 
         this.previousCorrected = corrected;
 
-        const bLoad = corrected.mean[0][0];
-        const bCharge = corrected.mean[1][0];
-        const bBat1 = corrected.mean[2][0];
-        const bBat2 = corrected.mean[3][0];
+        let bLoad = corrected.mean[0][0];
+        let bCharge = corrected.mean[1][0];
+        let bBat1 = corrected.mean[2][0];
+        let bBat2 = corrected.mean[3][0];
+ 
+        /* const anchor_value = [bLoad, bCharge, bBat1, bBat2].filter((v) => v !== 0).map(Math.abs)[0] || 0;
+        console.log('Biases:', { bLoad, bCharge, bBat1, bBat2 }, 'Anchor value:', anchor_value);
 
-        const loadCorrected = this.isActive.load ? loadCurrent - bLoad : 0;
-        const chargeCorrected = this.isActive.charge ? chargeCurrent - bCharge : 0;
-        const battery1NetCorrected = this.isActive.bat1 ? battery1NetCurrent - bBat1 : 0;
-        const battery2NetCorrected = this.isActive.bat2 ? battery2NetCurrent - bBat2 : 0;
+        let loadCorrected = this.isActive.load ? loadCurrent - bLoad + anchor_value : 0;
+        let chargeCorrected = this.isActive.charge ? chargeCurrent - bCharge + anchor_value : 0;
+        let battery1NetCorrected = this.isActive.bat1 ? battery1NetCurrent - bBat1 + anchor_value : 0;
+        let battery2NetCorrected = this.isActive.bat2 ? battery2NetCurrent - bBat2 + anchor_value : 0;
+ */     
 
-        
-        const correctedKcl =
+        let loadCorrected = this.isActive.load ? loadCurrent - bLoad : 0;
+        let chargeCorrected = this.isActive.charge ? chargeCurrent - bCharge : 0;
+        let battery1NetCorrected = this.isActive.bat1 ? battery1NetCurrent - bBat1 : 0;
+        let battery2NetCorrected = this.isActive.bat2 ? battery2NetCurrent - bBat2 : 0;
+
+
+        let correctedKcl =
             loadCorrected
             - chargeCorrected
             - battery1NetCorrected
             - battery2NetCorrected;
+
+        if (correctedKcl > this.ctx.rawKcl) {
+            // If corrected KCL > raw, reuse the raw KCL value to avoid over-correction.
+            correctedKcl = this.ctx.rawKcl;
+            loadCorrected = this.isActive.load ? loadCurrent : 0;
+            chargeCorrected = this.isActive.charge ? chargeCurrent : 0;
+            battery1NetCorrected = this.isActive.bat1 ? battery1NetCurrent : 0;
+            battery2NetCorrected = this.isActive.bat2 ? battery2NetCurrent : 0;
+            bLoad = 0;
+            bCharge = 0;
+            bBat1 = 0;
+            bBat2 = 0;        
+            //console.log('Corrected KCL exceeded raw KCL. Reverting to raw values.');
+        }
 
         return {
             state: corrected,
