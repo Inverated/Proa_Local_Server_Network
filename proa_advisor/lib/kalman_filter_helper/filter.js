@@ -37,19 +37,19 @@ class Battery2RCEKF {
         this.noise = {
             socProcess: options.noise?.socProcess ?? 1e-22,
             rcProcess: options.noise?.rcProcess ?? 1e-22,
-            voltage: options.noise?.voltage ?? 1e-8,
+            voltage: options.noise?.voltage ?? 1e-14,
         };
 
         this.initial = {
             soc: options.initial.soc,
-            v1: options.initial.v1,
-            v2: options.initial.v2,
+            vrc1: options.initial.vrc1,
+            vrc2: options.initial.vrc2,
         };
 
         this.initialCovariance = options.initialCovariance || diag([
             1e-8,
             1e-8,
-            1e-10,
+            1e-8,
         ]);
 
         this.ctx = null;
@@ -84,8 +84,8 @@ class Battery2RCEKF {
                 init: {
                     mean: [
                         [this.initial.soc],
-                        [this.initial.v1],
-                        [this.initial.v2],
+                        [this.initial.vrc1],
+                        [this.initial.vrc2],
                     ],
                     covariance: this.initialCovariance,
                 },
@@ -151,19 +151,19 @@ class Battery2RCEKF {
         this.previousCorrected = corrected;
 
         const soc = corrected.mean[0][0];
-        const v1 = corrected.mean[1][0];
-        const v2 = corrected.mean[2][0];
+        const vrc1 = corrected.mean[1][0];
+        const vrc2 = corrected.mean[2][0];
         this.rc_values = await getBatteryRC_SoC(soc, this.name === "main" ? "MainRCMapping" : "AlternateRCMapping", 2);
 
         const rc = this.rc_values[0];
         if (log) {
             console.log(`After predict`, predicted.mean, `After correct`, corrected.mean);
-            console.log(rc.OCV, v1, v2, rc.R0 * netCurrent, predicted.mean, corrected.mean);
+            console.log(rc.OCV, vrc1, vrc2, rc.R0 * netCurrent, predicted.mean, corrected.mean);
         }
         const voltageEstimate =
             rc.OCV
-            - v1
-            - v2
+            - vrc1
+            - vrc2
             - rc.R0 * netCurrent;
 
         return {
@@ -172,8 +172,8 @@ class Battery2RCEKF {
 
             state_vector: {
                 soc,
-                vrc1: v1,
-                vrc2: v2,
+                vrc1: vrc1,
+                vrc2: vrc2,
             },
 
             rc,
@@ -187,21 +187,21 @@ class Battery2RCEKF {
 
     _stateFn(mean) {
         const soc = mean[0][0];
-        const v1 = mean[1][0];
-        const v2 = mean[2][0];
+        const vrc1 = mean[1][0];
+        const vrc2 = mean[2][0];
         const rc = this.rc_values[0];
         const { a1, a2 } = alphas(rc, this.ctx.dt);
 
         const I = this.ctx.netCurrent;
         const socNext = soc - (I * this.ctx.dt) / (this.Qn);
 
-        const v1Next = a1 * v1 + rc.R1 * (1 - a1) * I;
-        const v2Next = a2 * v2 + rc.R2 * (1 - a2) * I;
+        const vrc1Next = a1 * vrc1 + rc.R1 * (1 - a1) * I;
+        const vrc2Next = a2 * vrc2 + rc.R2 * (1 - a2) * I;
 
         return [
             [clamp(socNext, 0, 1)],
-            [v1Next],
-            [v2Next],
+            [vrc1Next],
+            [vrc2Next],
         ];
     }
 
@@ -221,8 +221,8 @@ class Battery2RCEKF {
 
     _measurementFn(mean) {
         const soc = mean[0][0];
-        const v1 = mean[1][0];
-        const v2 = mean[2][0];
+        const vrc1 = mean[1][0];
+        const vrc2 = mean[2][0];
 
         const I = this.ctx.netCurrent;
         const rc = this.rc_values[0];
@@ -230,8 +230,8 @@ class Battery2RCEKF {
 
         const terminalVoltage =
             ocv
-            - v1
-            - v2
+            - vrc1
+            - vrc2
             - rc.R0 * I;
 
         return [[terminalVoltage]];

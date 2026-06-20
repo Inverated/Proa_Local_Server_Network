@@ -10,7 +10,8 @@ const tables_initialized = {
     AlternateBatteryState: false,
     KCL_Correctionstate: false,
     MainRCMapping: false,
-    AlternateRCMapping: false
+    AlternateRCMapping: false,
+    RunInfo: false
 };
 
 let db = null;
@@ -82,9 +83,9 @@ function initializeDatabase() {
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
                 run_id INTEGER NOT NULL,
-                state_vector BLOB NOT NULL,
-                covariance_matrix BLOB NOT NULL,
-                sensor_readings BLOB NOT NULL
+                state_vector TEXT NOT NULL,
+                covariance_matrix TEXT NOT NULL,
+                sensor_readings TEXT NOT NULL
             )`, (err) => {
                 if (err) {
                     console.error('Error creating MainBatteryState table:', err.message);
@@ -99,9 +100,9 @@ function initializeDatabase() {
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
                 run_id INTEGER NOT NULL,
-                state_vector BLOB NOT NULL,
-                covariance_matrix BLOB NOT NULL,
-                sensor_readings BLOB NOT NULL
+                state_vector TEXT NOT NULL,
+                covariance_matrix TEXT NOT NULL,
+                sensor_readings TEXT NOT NULL
             )`, (err) => {
                 if (err) {
                     console.error('Error creating AlternateBatteryState table:', err.message);
@@ -116,8 +117,8 @@ function initializeDatabase() {
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
                     run_id INTEGER NOT NULL,
-                    biases BLOB NOT NULL,
-                    covariance_matrix BLOB NOT NULL
+                    biases TEXT NOT NULL,
+                    covariance_matrix TEXT NOT NULL
                 )`, (err) => {
                     if (err) {
                         console.error('Error creating KCL_Correctionstate table:', err.message);
@@ -166,6 +167,24 @@ function initializeDatabase() {
                     tables_initialized.AlternateRCMapping = true;
                 }
             });
+
+            db.run(`
+                CREATE TABLE IF NOT EXISTS RunInfo (
+                    run_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    total_runtime INTEGER NOT NULL,
+                    total_load_W REAL NOT NULL,
+                    total_mppt_W REAL NOT NULL,
+                    total_batt1_net_W REAL NOT NULL,
+                    total_batt2_net_W REAL NOT NULL,
+                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+                )`, (err) => {
+                    if (err) {
+                        console.error('Error creating RunInfo table:', err.message);
+                        reject(err);
+                    } else {
+                        tables_initialized.RunInfo = true;
+                    }
+                });
         })
     })
 };

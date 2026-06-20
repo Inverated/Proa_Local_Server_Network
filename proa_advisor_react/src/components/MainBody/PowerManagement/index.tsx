@@ -13,6 +13,10 @@ const ARRAY_LENGTH = 1000;
 
 type PowerData = {
     timestamp: number;
+    total_load_W?: number;
+    total_mppt_W?: number;
+    total_batt1_net_W?: number;
+    total_batt2_net_W?: number;
     voltageReadingMain?: number;
     correctedVoltageMain?: number;
     OCVMain?: number;

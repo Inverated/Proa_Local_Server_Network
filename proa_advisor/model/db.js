@@ -63,7 +63,7 @@ async function insertMainBatteryState(run_id, state_vector, covariance_matrix, s
         db.run(`
             INSERT INTO MainBatteryState (run_id, state_vector, covariance_matrix, sensor_readings)
             VALUES (?, ?, ?, ?)
-        `, [run_id, state_vector, covariance_matrix, sensor_readings], function (err) {
+        `, [run_id, JSON.stringify(state_vector), JSON.stringify(covariance_matrix), JSON.stringify(sensor_readings)], function (err) {
             if (err) {
                 console.error('Error inserting main battery state data:', err.message);
             }
@@ -77,7 +77,7 @@ async function insertAlternateBatteryState(run_id, state_vector, covariance_matr
         db.run(`
             INSERT INTO AlternateBatteryState (run_id, state_vector, covariance_matrix, sensor_readings)
             VALUES (?, ?, ?, ?)
-        `, [run_id, state_vector, covariance_matrix, sensor_readings], function (err) {
+        `, [run_id, JSON.stringify(state_vector), JSON.stringify(covariance_matrix), JSON.stringify(sensor_readings)], function (err) {
             if (err) {
                 console.error('Error inserting alternate battery state data:', err.message);
             }
@@ -91,7 +91,7 @@ async function insertKCLCorrectionState(run_id, biases, covariance_matrix) {
         db.run(`
             INSERT INTO KCL_Correctionstate (run_id, biases, covariance_matrix)
             VALUES (?, ?, ?)
-        `, [run_id, biases, covariance_matrix], function (err) {
+        `, [run_id, JSON.stringify(biases), JSON.stringify(covariance_matrix)], function (err) {
             if (err) {
                 console.error('Error inserting KCL correction state data:', err.message);
             }
@@ -217,27 +217,44 @@ async function getLastAlternateBatteryState() {
     });
 }
 
+async function getLastKCLCorrectionState() {
+    const db = getDB();
+    return new Promise((resolve, reject) => {
+        db.get(`
+            SELECT * FROM KCL_Correctionstate ORDER BY id DESC LIMIT 1
+        `, [], (err, row) => {
+            if (err) {
+                console.error('Error retrieving last KCL correction state data:', err.message);
+                reject(err);
+            } else {
+                resolve(row);
+            }
+        });
+    });
+}
+
 async function getRunId(time_before_new_run = 5 * 60 * 1000) { // 5 minutes
     const db = getDB();
     return new Promise((resolve, reject) => {
         db.get(`
-            SELECT run_id, timestamp FROM SOCSensor ORDER BY id DESC LIMIT 1
+            SELECT run_id, timestamp FROM MainBatteryState ORDER BY timestamp DESC LIMIT 1
         `, [], (err, row) => {
             if (err) {
                 console.error('Error retrieving last run_id:', err.message);
                 reject(err);
             } else {
                 if (!row) {
-                    resolve(1); // No previous run, start with run_id 1
+                    resolve({ run_id: 1, is_new: true }); // No previous run, start with run_id 1
                     return;
                 }
                 const time_now = new Date();
-                const time_last = new Date(row.timestamp);
+                const time_last = new Date(row.timestamp.replace(' ', 'T') + 'Z'); // Convert to ISO format for Date parsing
                 const time_diff = time_now - time_last;
+                
                 if (time_diff > time_before_new_run) {
-                    resolve(row.run_id + 1); // Start new run
+                    resolve({ run_id: row.run_id + 1, is_new: true }); // Start new run
                 } else {
-                    resolve(row.run_id);
+                    resolve({ run_id: row.run_id, is_new: false });
                 }
             }
         });
@@ -251,9 +268,6 @@ async function fetchStateAndSensorReadings(tableName = 'MainBatteryState', runId
     }
 
     const db = getDB();
-    if (runId === null || runId === undefined) {
-        runId = await getRunId();
-    }
 
     return new Promise((resolve, reject) => {
         const sql = `SELECT id, run_id, timestamp, state_vector, sensor_readings FROM ${tableName} WHERE run_id = ? ORDER BY id ASC LIMIT ?`;
@@ -294,6 +308,46 @@ async function fetchStateAndSensorReadings(tableName = 'MainBatteryState', runId
     });
 }
 
+async function createOrUpdateRunInfo(run_id, total_runtime, total_load_W, total_mppt_W, total_batt1_net_W, total_batt2_net_W) {
+    const db = getDB();
+    return new Promise((resolve, reject) => {
+        db.run(`
+            INSERT INTO RunInfo (run_id, total_runtime, total_load_W, total_mppt_W, total_batt1_net_W, total_batt2_net_W)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(run_id)
+            DO UPDATE SET
+                total_runtime = excluded.total_runtime,
+                total_load_W = excluded.total_load_W,
+                total_mppt_W = excluded.total_mppt_W,
+                total_batt1_net_W = excluded.total_batt1_net_W,
+                total_batt2_net_W = excluded.total_batt2_net_W;
+        `, [run_id, total_runtime, total_load_W, total_mppt_W, total_batt1_net_W, total_batt2_net_W], (err) => {
+            if (err) {
+                console.error('Error creating or updating run info:', err.message);
+                reject(err);
+            } else {
+                resolve();
+            }
+        });
+    });
+}
+
+async function getRunInfo(run_id) {
+    const db = getDB();
+    return new Promise((resolve, reject) => {
+        db.get(`
+            SELECT * FROM RunInfo WHERE run_id = ?
+        `, [run_id], (err, row) => {
+            if (err) {
+                console.error('Error retrieving run info:', err.message);
+                reject(err);
+            } else {
+                resolve(row);
+            }
+        });
+    });
+}
+
 module.exports = {
     insertSocSensorData,
     insertSocSensorDataBulk,
@@ -305,5 +359,8 @@ module.exports = {
     getLastMainBatteryState,
     getLastAlternateBatteryState,
     getRunId,
-    fetchStateAndSensorReadings
+    fetchStateAndSensorReadings,
+    getLastKCLCorrectionState,
+    createOrUpdateRunInfo,
+    getRunInfo
 };
