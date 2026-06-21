@@ -26,51 +26,55 @@ Batt 1: Main battery, LiNMC, 2s1p pack, 48.0V nominal, 104Ah
 Batt 2: Alternate battery, LiFePO4, 2s1p pack, 48.0V nominal, 50Ah
 */
 
-const SAMPLE_INTERVAL_BEFORE_WRITE = 5000;
-const SAVE_STATES_TO_DB = true;
-const SAVE_ADC_READINGS_TO_DB = false;
-const SAMPLE_INTERVAL_MS = 10; // Adjust this value as needed to simulate real-time data arrival
-let sample_count = 0;
-let current_run_id = null;
+const SAMPLE_INTERVAL_BEFORE_WRITE  = 5000;
+const SAVE_STATES_TO_DB             = true;
+const SAVE_ADC_READINGS_TO_DB       = false;
+const SAMPLE_INTERVAL_MS            = 10;       // Only for test data
+let sample_count                    = 0;
+let current_run_id                  = null;
+let payLoad                         = {};
 
-const MIDPOINT = 2 ** 15 - 1; // Midpoint of 16-bit ADC
-const VOLTAGE_DIVIDER_RATIO = (100 + 20) / 20; // R1 + R2 / R2
-const BATT_CUTOFF_VOLTAGE = 30; // Voltage below which battery is considered disconnected or fully drained
+const MIDPOINT                      = 2 ** 15 - 1;      // Midpoint of 16-bit ADC
+const VOLTAGE_DIVIDER_RATIO         = (100 + 20) / 20;  // R1 + R2 / R2
+const BATT_CUTOFF_VOLTAGE           = 30;               // Voltage below which battery is considered disconnected or fully drained
 
-const avg_kcl_noise = [];
-const KCL_CURRENT_THRESHOLD = 0.05;
-let data_array = [];
-let main_battery = null;
-let alternate_battery = null;
-let kcl_corrector = null;
+const avg_kcl_noise             = [];
+const KCL_CURRENT_THRESHOLD     = 0.05;
+let data_array                  = [];       // For saving adc readings to db     
 
-const CURRENT_FLIP_THRESHOLD = 5.0; // Threshold in Amps to detect if load or MPPT current is flipped due to wiring issues
-let is_load_flipped = false;
-let is_mppt_flipped = false;
+// EKF Implements
+let main_battery                = null;
+let alternate_battery           = null;
+let kcl_corrector               = null;
 
-let activeUpdates = 0;  // Detect async update falling behind
-let total_load_W = 0;
-let total_mppt_W = 0;
-let total_batt1_net_W = 0;
-let total_batt2_net_W = 0;
+// Self correction
+const CURRENT_FLIP_THRESHOLD    = 5.0; // Threshold in Amps to detect if load or MPPT current is flipped due to wiring issues
+let is_load_flipped             = false;
+let is_mppt_flipped             = false;
 
+// Statistic
+let activeUpdates               = 0;  // Detect async update falling behind
+let total_load_W                = 0;
+let total_mppt_W                = 0;
+let total_batt1_net_W           = 0;
+let total_batt2_net_W           = 0;
 let total_time = 0;
 
-let time_start = Date.now();
-let payLoad = {};
 
-const MEDIAN_WINDOW_SIZE = 10;
-let window_counter = 0;
-let time_diff_window = [];
-let mppt_out_window = []; let load_in_window = [];
-let batt1_net_window = []; let batt2_net_window = [];
-let batt1_v_window = []; let batt2_v_window = [];
+// Smoothing
+const MEDIAN_WINDOW_SIZE    = 10;
+let window_counter          = 0;
+let time_diff_window        = [];
+let mppt_out_window         = [];   let load_in_window      = [];
+let batt1_net_window        = [];   let batt2_net_window    = [];
+let batt1_v_window          = [];   let batt2_v_window      = [];
 
-let last_main_battery_state = null;
-let last_alternate_battery_state = null;
-let last_kcl_correction_state = null;
+// Recovery
+let last_main_battery_state         = null;
+let last_alternate_battery_state    = null;
+let last_kcl_correction_state       = null;
 
-async function onNewSample(sample, log = false) {
+async function onNewSample(sample, force_log = false, is_test = false) {
     activeUpdates++;
     if (activeUpdates % 100 === 0) {
         console.log("Background updates:", activeUpdates);
@@ -98,7 +102,6 @@ async function onNewSample(sample, log = false) {
             current_run_id = run_id;
         }
 
-
         let { counter, time_diff_us, a0, a1, a2, a3, a4, a5, a6, a7 } = sample;
 
         let mppt_out = is_mppt_flipped ? -adc_to_current(a0, 1) : adc_to_current(a0, 1);
@@ -120,6 +123,7 @@ async function onNewSample(sample, log = false) {
         batt1_net = Math.abs(batt1_net) < KCL_CURRENT_THRESHOLD ? 0 : batt1_net;
         batt2_net = Math.abs(batt2_net) < KCL_CURRENT_THRESHOLD ? 0 : batt2_net;
 
+        // Calculate total power for display use only (Not fully accurate)
         let mppt_power = 0;
         let load_power = 0;
         if (batt2_net < 0.5) {                      // assume both mppt and load going to batt1
@@ -144,8 +148,8 @@ async function onNewSample(sample, log = false) {
         total_batt1_net_W += batt1_net_W;
 
         total_time += time_diff_us / 1e6;
-        
-        data_array.push({
+
+        SAVE_ADC_READINGS_TO_DB && data_array.push({
             run_id: current_run_id,
             time_diff: time_diff_us,
             adcReading0: a0,
@@ -169,10 +173,7 @@ async function onNewSample(sample, log = false) {
                 const { SoC, R0, R1, C1, C2, Tau1, Tau2, OCV } = rc_values[0];
 
                 avg_kcl_noise.push(sigma_kcl);
-                const noise = {
-                    voltage: sigma_v ** 2,
-                }
-
+                const noise = { voltage: sigma_v ** 2 }
                 const initial = {
                     soc: SoC,
                     vrc1: 0,
@@ -201,7 +202,7 @@ async function onNewSample(sample, log = false) {
                 
                 console.log(`Initialized main battery with SoC: ${100 * SoC.toFixed(4)}%, R0: ${R0.toFixed(4)}Ω, R1: ${R1.toFixed(4)}Ω, C1: ${C1.toFixed(2)}F, C2: ${C2.toFixed(2)}F`);
             } catch (err) {
-                throw err; // Rethrow to be caught by outer try-catch
+                throw err;
             }
         }
 
@@ -216,9 +217,7 @@ async function onNewSample(sample, log = false) {
                 const { SoC, R0, R1, C1, C2, Tau1, Tau2, OCV } = rc_values[0];
                 avg_kcl_noise.push(sigma_kcl);
 
-                const noise = {
-                    voltage: sigma_v ** 2,
-                }
+                const noise = { voltage: sigma_v ** 2 }
                 const initial = {
                     soc: SoC,
                     vrc1: 0,
@@ -246,7 +245,7 @@ async function onNewSample(sample, log = false) {
                 await alternate_battery.init();
                 console.log(`Initialized alternate battery with SoC: ${100 * SoC.toFixed(4)}%, R0: ${R0.toFixed(4)}Ω, R1: ${R1.toFixed(4)}Ω, C1: ${C1.toFixed(2)}F, C2: ${C2.toFixed(2)}F`);
             } catch (err) {
-                throw err; // Rethrow to be caught by outer try-catch
+                throw err;
             }
         }
 
@@ -280,9 +279,6 @@ async function onNewSample(sample, log = false) {
         batt1_v_window = [];
         batt2_v_window = [];
         window_counter = 0;
-    /* } catch (err) {
-        console.error("Error in onNewSample:", err.message);
-        //await new Promise(resolve => setTimeout(resolve, 1000));  */
     } finally {
         activeUpdates--;
     }
@@ -354,7 +350,7 @@ async function updateFilter(time_diff_us, mppt_out, load_in, batt1_net, batt2_ne
         payLoad.correctedCurrentNetAlt = corrected_currents.battery2NetCorrected;
     }
 
-    const main_sensor_readings = {
+    const sensor_readings = {
         I_batt_main: batt1_net,
         I_batt_alternate: batt2_net,
         I_mppt: mppt_out,
@@ -372,7 +368,7 @@ async function updateFilter(time_diff_us, mppt_out, load_in, batt1_net, batt2_ne
 
         if (sample_count % SAMPLE_INTERVAL_BEFORE_WRITE === 0) {
             if (SAVE_STATES_TO_DB) {
-                await insertMainBatteryState(current_run_id, state_vector, state.covariance, main_sensor_readings);
+                await insertMainBatteryState(current_run_id, state_vector, state.covariance, sensor_readings);
             }
             console.log(`Counter: ${sample_count}, \tSoC Main: ${(100 * state_vector.soc).toFixed(5)}%, \tCorrected Main: ${voltageEstimate.toFixed(5)}V, Correct OCV: ${rc.OCV.toFixed(5)}V, \tCurrent Main: ${corrected_currents.battery1NetCorrected.toFixed(5)}A, \tVoltage Residual: ${voltageResidual.toFixed(5)}V`);
             payLoad.voltageReadingMain = batt1_v;
@@ -389,8 +385,14 @@ async function updateFilter(time_diff_us, mppt_out, load_in, batt1_net, batt2_ne
             netCurrent: corrected_currents.battery2NetCorrected,
         });
         if (sample_count % SAMPLE_INTERVAL_BEFORE_WRITE === 0) {
+            // Duplicate sensor readaing insertion redundancy. 
+            // To resolve:
+            //  Ccreate new write function -> Slightly higher run time
+            //  Serialise main state + alt state + kcl state + readings db write -> More complicated to handle
+            //  Duplicate entry if alt batt exists -> Higher storage use
+
             if (SAVE_STATES_TO_DB) {
-                await insertAlternateBatteryState(current_run_id, state_vector, state.covariance, alternate_sensor_readings);
+                await insertAlternateBatteryState(current_run_id, state_vector, state.covariance, sensor_readings);
             }
             console.log(`Counter: ${sample_count}, \tSoC Alternate: ${(100 * state_vector.soc).toFixed(5)}%, \tCorrected Alt: ${voltageEstimate.toFixed(5)}V, Correct OCV: ${rc.OCV.toFixed(5)}V, \tCurrent Alternate: ${corrected_currents.battery2NetCorrected.toFixed(5)}A, \tVoltage Residual: ${voltageResidual.toFixed(5)}V`);
             payLoad.voltageReadingAlt = batt2_v;
@@ -413,7 +415,7 @@ async function updateFilter(time_diff_us, mppt_out, load_in, batt1_net, batt2_ne
         data_array = [];
     }
 
-    if (sample_count % SAMPLE_INTERVAL_BEFORE_WRITE === 0 && SAMPLE_INTERVAL_MS > 0) {
+    if (!is_test && sample_count % SAMPLE_INTERVAL_BEFORE_WRITE === 0 && SAMPLE_INTERVAL_MS > 0) {
         await new Promise(resolve => setTimeout(resolve, SAMPLE_INTERVAL_MS)); // Simulate delay for real-time processing
     }
 }
@@ -439,10 +441,8 @@ function detectAndCorrectFlips(mppt_out, load_in, batt1_net, batt2_net, batt1_v,
 
     if (batt1_net + batt2_net - load_in + mppt_out > 2) {
         if ((-batt1_net) + batt2_net - load_in + mppt_out < 1) {
-            //console.warn(`KCL violation detected: ${(batt1_net).toFixed(5)} + ${batt2_net.toFixed(5)} - ${load_in.toFixed(5)} + ${mppt_out.toFixed(5)} = ${(batt1_net + batt2_net - load_in + mppt_out).toFixed(5)}`);
             batt1_net = -batt1_net; // Flip the sign of batt1_net to correct the KCL violation
         } else if (batt1_net + (-batt2_net) - load_in + mppt_out < 1) {
-            //console.warn(`KCL violation detected: ${batt1_net.toFixed(5)} + ${(batt2_net).toFixed(5)} - ${load_in.toFixed(5)} + ${mppt_out.toFixed(5)} = ${(batt1_net + batt2_net - load_in + mppt_out).toFixed(5)}`);
             batt2_net = -batt2_net; // Flip the sign of batt2_net to correct the KCL violation
         } else {
             throw new Error("KCL violation due to miswiring of MPPT or Load current sensor detected and cannot be corrected. Check wiring.");

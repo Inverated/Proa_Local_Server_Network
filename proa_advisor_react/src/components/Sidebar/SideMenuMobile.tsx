@@ -6,10 +6,11 @@ import MenuContent from './MenuContent';
 interface SideMenuMobileProps {
   open: boolean | undefined;
   toggleDrawer: (newOpen: boolean) => () => void;
+  selectedContent: number;
   setSelectContent: (content: unknown) => void;
 }
 
-export default function SideMenuMobile({ open, toggleDrawer, setSelectContent }: SideMenuMobileProps) {
+export default function SideMenuMobile({ open, toggleDrawer, selectedContent, setSelectContent }: SideMenuMobileProps) {
   return (
     <Drawer
       anchor="right"
@@ -32,7 +33,7 @@ export default function SideMenuMobile({ open, toggleDrawer, setSelectContent }:
       >
         <Divider />
         <Stack sx={{ flexGrow: 1 }}>
-          <MenuContent setSelectContent={setSelectContent} />
+          <MenuContent selectedContent={selectedContent} setSelectContent={setSelectContent} />
           <Divider />
         </Stack>
       </Stack>

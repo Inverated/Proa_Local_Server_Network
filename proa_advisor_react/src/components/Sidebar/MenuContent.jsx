@@ -25,13 +25,17 @@ const secondaryListItems = [
     { text: 'About', icon: <InfoRoundedIcon /> },
 ];
 
-export default function MenuContent({ setSelectContent }) {
+export default function MenuContent({ selectedContent, setSelectContent }) {
     const [selectedIndex, setSelectedIndex] = useState(0);
 
     function handleSelect(index) {
         setSelectedIndex(index);
         setSelectContent(index);
     }
+
+    useEffect(() => {
+        setSelectedIndex(selectedContent);
+    }, [selectedContent])
 
     return (
         <Stack sx={{ flexGrow: 1, p: 1, justifyContent: 'space-between' }}>

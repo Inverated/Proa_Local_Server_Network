@@ -2,7 +2,7 @@ const { SerialPort } = require('serialport');
 const { ReadlineParser } = require('@serialport/parser-readline');
 const { onNewSample } = require("./kalman_filter")
 
-const PACKET_BYTES = 4 + 2 + 4 + (8 * 2) + 2; // 28 bytes
+const PACKET_BYTES = 4 + 2 + 4 + (8 * 2) + 2; // Fix at 28 bytes
 const HEADER = 'PWER';
 const HEADER_BUFFER = Buffer.from(HEADER, 'ascii');
 const HEADER_INT = HEADER_BUFFER.readUInt32LE(0);
@@ -162,7 +162,7 @@ async function startSerialReader() {
     const { port, path } = result;
     console.log(`Listening on ${path}`);
 
-    // Use raw data events — not a line parser — since this is binary
+    // Use raw data events — not a line parser since this is binary
     port.on('data', (chunk) => {
         recvBuf = Buffer.concat([recvBuf, chunk]);
         processBuffer();

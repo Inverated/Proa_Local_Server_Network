@@ -27,7 +27,6 @@ async function consolidated_data(path_array) {
                         a6: ch6,
                         a7: ch7
                     })
-                    //console.log(`Loaded sample from ${path}: counter=${counter}, time_diff_us=${timediff_us}, ch0=${ch0}, ch1=${ch1}, ch2=${ch2}, ch3=${ch3}, ch4=${ch4}, ch5=${ch5}, ch6=${ch6}, ch7=${ch7}`);   
                 })
                 .on('end', () => {
                     console.log(`Finished loading data from ${path}`);
@@ -52,9 +51,9 @@ async function run_test() {
 
     for (let i = 0; i < consolidated.length; i++) {
         if (i == consolidated.length - 1) {
-            await onNewSample(consolidated[i], true);
+            await onNewSample(consolidated[i], force_log=true, is_test=true);
         } else {
-            await onNewSample(consolidated[i], false);
+            await onNewSample(consolidated[i], force_log=false, is_test=true);
         }
     }
 }

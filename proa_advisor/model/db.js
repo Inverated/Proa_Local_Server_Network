@@ -157,7 +157,6 @@ async function getBatteryRC_SoC(soc, tableName, count = 1) {
         const half = Math.floor(count / 2);
         const index = soc_to_index(soc);
         const start_index = Math.max(0, index - half);
-        
         const end_index = index + half;
         
         filtered = rc_data.slice(start_index, end_index + 1);
@@ -166,19 +165,17 @@ async function getBatteryRC_SoC(soc, tableName, count = 1) {
     if (Math.abs(soc - filtered[0].SoC) > 0.05 || (filtered[0].SoC < 1e-10 && soc > 0)) {
         console.error(`Requested SoC ${soc.toFixed(40)} is wrong. Received ${filtered[0].SoC.toFixed(40)} from database.`);
     }
-    //console.log(filtered)
     return filtered;
 }
 
 async function getBatteryRC_OCV(voltage, factor, tableName, count = 1) {
-    //console.log(`Fetching RC values for voltage: ${voltage.toFixed(4)}V, factor: ${factor}, table: ${tableName}, count: ${count}`);
     if (tableName !== "MainRCMapping" && tableName !== "AlternateRCMapping") {
         throw new Error("Invalid table name. Must be 'MainRCMapping' or 'AlternateRCMapping'.");
     }
     const table_size = 10 ** (factor + 2) + 1;
 
     const rc_data = await fetchAndCacheRC(tableName);
-    
+    // Fast enough. Only run once per filter + array almost fully sorted
     const sorted = rc_data.sort((a, b) => Math.abs(a.OCV - voltage) - Math.abs(b.OCV - voltage));
     const sliced = sorted.slice(0, count);
     return sliced;
@@ -262,7 +259,6 @@ async function getRunId(time_before_new_run = 5 * 60 * 1000) { // 5 minutes
 }
 
 async function fetchStateAndSensorReadings(tableName = 'MainBatteryState', runId = null, count = 50) {
-    // Only allow known state tables to avoid SQL injection via table name
     if (tableName !== 'MainBatteryState' && tableName !== 'AlternateBatteryState') {
         throw new Error("Invalid table name. Must be 'MainBatteryState' or 'AlternateBatteryState'.");
     }
@@ -284,16 +280,12 @@ async function fetchStateAndSensorReadings(tableName = 'MainBatteryState', runId
                         if (typeof state_vector === 'string') {
                             state_vector = JSON.parse(state_vector);
                         }
-                    } catch (e) {
-                        // leave as-is if parsing fails
-                    }
+                    } catch (e) {   } 
                     try {
                         if (typeof sensor_readings === 'string') {
                             sensor_readings = JSON.parse(sensor_readings);
                         }
-                    } catch (e) {
-                        // leave as-is if parsing fails
-                    }
+                    } catch (e) {   }
                     return {
                         id: r.id,
                         run_id: r.run_id,

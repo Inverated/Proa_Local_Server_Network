@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import DynamicLineChart from "./DynamicLineChart";
+import DynamicLineChart from "../../Chart/DynamicLineChart";
 import Grid from '@mui/material/Grid';
 
 /* Charts:

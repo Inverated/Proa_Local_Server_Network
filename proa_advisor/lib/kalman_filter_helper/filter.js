@@ -208,10 +208,9 @@ class Battery2RCEKF {
     _stateJacobian(mean) {
         const soc = mean[0][0];
         const rc = this.rc_values[0];
-        const { a1, a2 } = alphas(rc, this.ctx.dt);
 
-        // Practical approximation:
         // RC lookup is treated as locally constant during one timestep.
+        const { a1, a2 } = alphas(rc, this.ctx.dt);
         return [
             [1, 0, 0],
             [0, a1, 0],
@@ -247,7 +246,6 @@ class Battery2RCEKF {
         const rc_high = rc_values[1];
         const rc_low = rc_values[0];
         const dOCVdSoC = (rc_high.OCV - rc_low.OCV) / (rc_high.SoC - rc_low.SoC);
-        //console.log(`dOCV/dSoC at SoC ${soc}: ${dOCVdSoC}`);
 
         return [[
             dOCVdSoC,

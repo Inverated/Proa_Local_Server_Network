@@ -155,16 +155,7 @@ class CurrentKCLCorrector {
         let bLoad = corrected.mean[0][0];
         let bCharge = corrected.mean[1][0];
         let bBat1 = corrected.mean[2][0];
-        let bBat2 = corrected.mean[3][0];
- 
-        /* const anchor_value = [bLoad, bCharge, bBat1, bBat2].filter((v) => v !== 0).map(Math.abs)[0] || 0;
-        console.log('Biases:', { bLoad, bCharge, bBat1, bBat2 }, 'Anchor value:', anchor_value);
-
-        let loadCorrected = this.isActive.load ? loadCurrent - bLoad + anchor_value : 0;
-        let chargeCorrected = this.isActive.charge ? chargeCurrent - bCharge + anchor_value : 0;
-        let battery1NetCorrected = this.isActive.bat1 ? battery1NetCurrent - bBat1 + anchor_value : 0;
-        let battery2NetCorrected = this.isActive.bat2 ? battery2NetCurrent - bBat2 + anchor_value : 0;
- */     
+        let bBat2 = corrected.mean[3][0];    
 
         let loadCorrected = this.isActive.load ? loadCurrent - bLoad : 0;
         let chargeCorrected = this.isActive.charge ? chargeCurrent - bCharge : 0;
@@ -189,7 +180,6 @@ class CurrentKCLCorrector {
             bCharge = 0;
             bBat1 = 0;
             bBat2 = 0;        
-            //console.log('Corrected KCL exceeded raw KCL. Reverting to raw values.');
         }
 
         return {

@@ -19,11 +19,11 @@ startDB().then(() => {
     console.log("Database started successfully.");
     return insertBatteryState(battery_type = "LiNMC", tableName = "MainRCMapping", override = OVERRIDE_DB);
 }).then((count) => {
-    console.log(`Inserted ${count} records into MainRCMapping.`);
+    count && console.log(`Inserted ${count} records into MainRCMapping.`);
 }).then(() => {
     return insertBatteryState(battery_type = "LiNMC", tableName = "AlternateRCMapping", override = OVERRIDE_DB);
 }).then((count) => {
-    console.log(`Inserted ${count} records into AlternateRCMapping.`);
+    count && console.log(`Inserted ${count} records into AlternateRCMapping.`);
 }).then(() => {
     run_test();
     //startSerialReader();

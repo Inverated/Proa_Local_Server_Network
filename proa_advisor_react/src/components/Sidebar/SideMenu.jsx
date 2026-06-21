@@ -18,7 +18,7 @@ const Drawer = styled(MuiDrawer)({
     },
 });
 
-export default function SideMenu({ setSelectContent }) {
+export default function SideMenu({ selectedContent, setSelectContent }) {
     return (
         <Drawer
             variant="permanent"
@@ -47,7 +47,7 @@ export default function SideMenu({ setSelectContent }) {
                     flexDirection: 'column',
                 }}
             >
-                <MenuContent setSelectContent={setSelectContent} />
+                <MenuContent selectedContent={selectedContent} setSelectContent={setSelectContent} />
             </Box>
         </Drawer>
     );

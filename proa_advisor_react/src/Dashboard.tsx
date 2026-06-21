@@ -17,7 +17,7 @@ import {
     datePickersCustomizations,
     treeViewCustomizations,
 } from './theme/customizations';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import Overview from './components/MainBody/Overview';
 import PowerManagement from './components/MainBody/PowerManagement';
 import StrainManagement from './components/MainBody/StrainManagement';
@@ -37,8 +37,8 @@ export default function Dashboard(props: { disableCustomTheme?: boolean }) {
         <AppTheme {...props} themeComponents={xThemeComponents}>
             <CssBaseline enableColorScheme />
             <Box sx={{ display: 'flex', width: '100%' }}>
-                <SideMenu setSelectContent={setMainContent} />
-                <AppNavbar setSelectContent={setMainContent} />
+                <SideMenu selectedContent={mainContent} setSelectContent={setMainContent} />
+                <AppNavbar selectedContent={mainContent} setSelectContent={setMainContent} />
                 {/* Main content */}
                 <Box
                     component="main"

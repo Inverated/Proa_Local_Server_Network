@@ -28,7 +28,6 @@ async function startDB() {
                         initializeDatabase();
                         setTimeout(() => {
                             if (Object.values(tables_initialized).every(v => v)) {
-                                //console.log('All tables initialized successfully.');
                                 res();
                             } else {
                                 console.log(`Database initialization attempt ${attempt + 1} failed. Retrying...`);
@@ -209,8 +208,6 @@ function insertBulkBatteryState(batch, tableName = 'MainRCMapping') {
         db.run(sql, flatValues, function (err) {
             if (err) {
                 console.error('Error inserting battery state batch:', err.message);
-            } else {
-                //console.log(`Inserted batch of ${batch.length} battery state into ${tableName}.`);
             }
         });
         db.run('COMMIT');

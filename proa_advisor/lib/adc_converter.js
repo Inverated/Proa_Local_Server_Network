@@ -1,5 +1,5 @@
 
-const V_REF = 4.096;    // Fixed internal voltage reference
+const V_REF = 4.096;    // Fixed internal voltage reference. Dont change
 
 function adc_to_voltage(adc_value, range) {
     let fs = null;
