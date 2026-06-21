@@ -13,27 +13,27 @@ const ARRAY_LENGTH = 1000;
 
 type PowerData = {
     timestamp: number;
-    total_load_W?: number;
-    total_mppt_W?: number;
-    total_batt1_net_W?: number;
-    total_batt2_net_W?: number;
-    voltageReadingMain?: number;
-    correctedVoltageMain?: number;
-    OCVMain?: number;
-    socMain?: number;
-    voltageReadingAlt?: number;
-    correctedVoltageAlt?: number;
-    OCVAlt?: number;
-    socAlt?: number;
-    currentMPPT?: number;
-    currentLoad?: number;
-    currentNetMain?: number;
-    currentNetAlt?: number;
-    correctedCurrentMPPT?: number;
-    correctedCurrentLoad?: number;
-    correctedCurrentNetMain?: number;
-    correctedCurrentNetAlt?: number;
-}
+    total_load_W: number;
+    total_mppt_W: number;
+    total_batt1_net_W: number;
+    total_batt2_net_W: number;
+    I_batt_main: number;
+    I_batt_alternate: number;
+    I_mppt: number;
+    I_load: number;
+    Corrected_I_batt_main: number;
+    Corrected_I_batt_alternate: number;
+    Corrected_I_mppt: number;
+    Corrected_I_load: number;
+    V_batt_main: number;
+    V_batt_alternate: number;
+    Corrected_V_batt_main: number;
+    Corrected_V_batt_alternate?: number;
+    OCV_batt_main: number;
+    OCV_batt_alternate?: number;
+    SoC_batt_main: number;
+    SoC_batt_alternate?: number;
+};
 
 export default function PowerManagement() {
     const [xData, setXData] = useState<number[]>([]);
@@ -68,53 +68,53 @@ export default function PowerManagement() {
             const data: PowerData = JSON.parse(event.data);
             console.log("Received data:", data);
             setXData((prevXData) => [...prevXData, data.timestamp].slice(-ARRAY_LENGTH));
-            if (data.voltageReadingMain !== undefined) {
-                setVoltageReadingMain((prev) => [...prev, data.voltageReadingMain as number].slice(-ARRAY_LENGTH));
+            if (data.V_batt_main !== undefined) {
+                setVoltageReadingMain((prev) => [...prev, data.V_batt_main as number].slice(-ARRAY_LENGTH));
             }
-            if (data.correctedVoltageMain !== undefined) {
-                setCorrectedVoltageMain((prev) => [...prev, data.correctedVoltageMain as number].slice(-ARRAY_LENGTH));
+            if (data.Corrected_V_batt_main !== undefined) {
+                setCorrectedVoltageMain((prev) => [...prev, data.Corrected_V_batt_main as number].slice(-ARRAY_LENGTH));
             }
-            if (data.OCVMain !== undefined) {
-                setOCVMain((prev) => [...prev, data.OCVMain as number].slice(-ARRAY_LENGTH));
+            if (data.OCV_batt_main !== undefined) {
+                setOCVMain((prev) => [...prev, data.OCV_batt_main as number].slice(-ARRAY_LENGTH));
             }
-            if (data.socMain !== undefined) {
-                setSocMain((prev) => [...prev, data.socMain as number].slice(-ARRAY_LENGTH));
+            if (data.SoC_batt_main !== undefined) {
+                setSocMain((prev) => [...prev, data.SoC_batt_main as number].slice(-ARRAY_LENGTH));
             }
-            if (data.voltageReadingAlt !== undefined) {
-                setVoltageReadingAlt((prev) => [...prev, data.voltageReadingAlt as number].slice(-ARRAY_LENGTH));
+            if (data.V_batt_alternate !== undefined) {
+                setVoltageReadingAlt((prev) => [...prev, data.V_batt_alternate as number].slice(-ARRAY_LENGTH));
             }
-            if (data.correctedVoltageAlt !== undefined) {
-                setCorrectedVoltageAlt((prev) => [...prev, data.correctedVoltageAlt as number].slice(-ARRAY_LENGTH));
+            if (data.Corrected_V_batt_alternate !== undefined) {
+                setCorrectedVoltageAlt((prev) => [...prev, data.Corrected_V_batt_alternate as number].slice(-ARRAY_LENGTH));
             }
-            if (data.OCVAlt !== undefined) {
-                setOCVAlt((prev) => [...prev, data.OCVAlt as number].slice(-ARRAY_LENGTH));
+            if (data.OCV_batt_alternate !== undefined) {
+                setOCVAlt((prev) => [...prev, data.OCV_batt_alternate as number].slice(-ARRAY_LENGTH));
             }
-            if (data.socAlt !== undefined) {
-                setSocAlt((prev) => [...prev, data.socAlt as number].slice(-ARRAY_LENGTH));
+            if (data.SoC_batt_alternate !== undefined) {
+                setSocAlt((prev) => [...prev, data.SoC_batt_alternate as number].slice(-ARRAY_LENGTH));
             }
-            if (data.currentLoad !== undefined) {
-                setCurrentLoad((prev) => [...prev, data.currentLoad as number].slice(-ARRAY_LENGTH));
+            if (data.I_load !== undefined) {
+                setCurrentLoad((prev) => [...prev, data.I_load as number].slice(-ARRAY_LENGTH));
             }
-            if (data.currentMPPT !== undefined) {
-                setCurrentMPPT((prev) => [...prev, data.currentMPPT as number].slice(-ARRAY_LENGTH));
+            if (data.I_mppt !== undefined) {
+                setCurrentMPPT((prev) => [...prev, data.I_mppt as number].slice(-ARRAY_LENGTH));
             }
-            if (data.currentNetMain !== undefined) {
-                setCurrentNetMain((prev) => [...prev, data.currentNetMain as number].slice(-ARRAY_LENGTH));
+            if (data.I_batt_main !== undefined) {
+                setCurrentNetMain((prev) => [...prev, data.I_batt_main as number].slice(-ARRAY_LENGTH));
             }
-            if (data.currentNetAlt !== undefined) {
-                setCurrentNetAlt((prev) => [...prev, data.currentNetAlt as number].slice(-ARRAY_LENGTH));
+            if (data.I_batt_alternate !== undefined) {
+                setCurrentNetAlt((prev) => [...prev, data.I_batt_alternate as number].slice(-ARRAY_LENGTH));
             }
-            if (data.correctedCurrentLoad !== undefined) {
-                setCorrectedCurrentLoad((prev) => [...prev, data.correctedCurrentLoad as number].slice(-ARRAY_LENGTH));
+            if (data.Corrected_I_load !== undefined) {
+                setCorrectedCurrentLoad((prev) => [...prev, data.Corrected_I_load as number].slice(-ARRAY_LENGTH));
             }
-            if (data.correctedCurrentMPPT !== undefined) {
-                setCorrectedCurrentMPPT((prev) => [...prev, data.correctedCurrentMPPT as number].slice(-ARRAY_LENGTH));
+            if (data.Corrected_I_mppt !== undefined) {
+                setCorrectedCurrentMPPT((prev) => [...prev, data.Corrected_I_mppt as number].slice(-ARRAY_LENGTH));
             }
-            if (data.correctedCurrentNetMain !== undefined) {
-                setCorrectedCurrentNetMain((prev) => [...prev, data.correctedCurrentNetMain as number].slice(-ARRAY_LENGTH));
+            if (data.Corrected_I_batt_main !== undefined) {
+                setCorrectedCurrentNetMain((prev) => [...prev, data.Corrected_I_batt_main as number].slice(-ARRAY_LENGTH));
             }
-            if (data.correctedCurrentNetAlt !== undefined) {
-                setCorrectedCurrentNetAlt((prev) => [...prev, data.correctedCurrentNetAlt as number].slice(-ARRAY_LENGTH));
+            if (data.Corrected_I_batt_alternate !== undefined) {
+                setCorrectedCurrentNetAlt((prev) => [...prev, data.Corrected_I_batt_alternate as number].slice(-ARRAY_LENGTH));
             }
         };
 

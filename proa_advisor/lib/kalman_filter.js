@@ -2,7 +2,7 @@ const { Battery2RCEKF } = require("./kalman_filter_helper/filter")
 const { CurrentKCLCorrector } = require("./kalman_filter_helper/kcl_corrector")
 const { adc_to_current, adc_to_voltage } = require("./adc_converter")
 const { load_battery_constants } = require('./kalman_filter_helper/helper');
-const { insertMainBatteryState, insertAlternateBatteryState, insertKCLCorrectionState, insertSocSensorData, insertSocSensorDataBulk, getLastMainBatteryState, getLastAlternateBatteryState, getLastKCLCorrectionState, getRunId, createOrUpdateRunInfo, getRunInfo } = require("../model/db")
+const { insertMainBatteryState, insertAlternateBatteryState, insertSensorReadings, insertKCLCorrectionState, insertSocSensorData, insertSocSensorDataBulk, getLastMainBatteryState, getLastAlternateBatteryState, getLastKCLCorrectionState, getRunId, createOrUpdateRunInfo, getRunInfo } = require("../model/db")
 const { getBatteryRC_OCV } = require("../model/db");
 const { write_to_clients } = require('../handler/client_transmission')
 
@@ -32,7 +32,6 @@ const SAVE_ADC_READINGS_TO_DB       = false;
 const SAMPLE_INTERVAL_MS            = 10;       // Only for test data
 let sample_count                    = 0;
 let current_run_id                  = null;
-let payLoad                         = {};
 
 const MIDPOINT                      = 2 ** 15 - 1;      // Midpoint of 16-bit ADC
 const VOLTAGE_DIVIDER_RATIO         = (100 + 20) / 20;  // R1 + R2 / R2
@@ -294,17 +293,6 @@ async function updateFilter(time_diff_us, mppt_out, load_in, batt1_net, batt2_ne
         console.log(`Initialized KCL Corrector with noise: ${kcl_corrector.noise.kcl.toExponential(2)}A^2`);
     }
 
-    // Payload to stream
-    if (sample_count % SAMPLE_INTERVAL_BEFORE_WRITE === 0) {
-        payLoad = {
-            timestamp: total_time,
-            total_load_W: total_load_W,
-            total_mppt_W: total_mppt_W,
-            total_batt1_net_W: total_batt1_net_W,
-            total_batt2_net_W: total_batt2_net_W
-        }
-    }
-
     // Tuning KCL process noise based on active channels
     let corrected_currents = {
         loadCorrected: load_in,
@@ -339,42 +327,50 @@ async function updateFilter(time_diff_us, mppt_out, load_in, batt1_net, batt2_ne
         }
         console.log("\nInput values - \tMain: " + batt1_v.toFixed(5) + "V, Alt: " + batt2_v.toFixed(5) + "V, \t\tLoad: " + load_in.toFixed(5) + "A, \tCharge: " + mppt_out.toFixed(5) + "A, \tBatt1: " + batt1_net.toFixed(5) + "A, \tBatt2: " + batt2_net.toFixed(5) + "A");
         console.log(`Counter: ${sample_count}, KCL Corrected Currents: \t\t\tLoad: ${corrected_currents.loadCorrected.toFixed(5)}A, \tCharge: ${corrected_currents.chargeCorrected.toFixed(5)}A, \tBatt1: ${corrected_currents.battery1NetCorrected.toFixed(5)}A, \tBatt2: ${corrected_currents.battery2NetCorrected.toFixed(5)}A`);
-
-        payLoad.currentLoad = load_in;
-        payLoad.currentMPPT = mppt_out;
-        payLoad.currentNetMain = batt1_net;
-        payLoad.currentNetAlt = batt2_net;
-        payLoad.correctedCurrentLoad = corrected_currents.loadCorrected;
-        payLoad.correctedCurrentMPPT = corrected_currents.chargeCorrected;
-        payLoad.correctedCurrentNetMain = corrected_currents.battery1NetCorrected;
-        payLoad.correctedCurrentNetAlt = corrected_currents.battery2NetCorrected;
     }
 
-    const sensor_readings = {
-        I_batt_main: batt1_net,
-        I_batt_alternate: batt2_net,
-        I_mppt: mppt_out,
-        I_load: load_in,
-        V_batt_main: batt1_v,
-        V_batt_alternate: batt2_v
-    };
+    let sensor_readings = {};
+    if (sample_count % SAMPLE_INTERVAL_BEFORE_WRITE === 0) {
+        sensor_readings = {
+            total_time: total_time,
+            total_load_W: total_load_W,
+            total_mppt_W: total_mppt_W,
+            total_batt1_net_W: total_batt1_net_W,
+            total_batt2_net_W: total_batt2_net_W,
+            I_batt_main: batt1_net,
+            I_batt_alternate: batt2_net,
+            I_mppt: mppt_out,
+            I_load: load_in,
+            Corrected_I_batt_main: corrected_currents.battery1NetCorrected,
+            Corrected_I_batt_alternate: corrected_currents.battery2NetCorrected,
+            Corrected_I_mppt: corrected_currents.chargeCorrected,
+            Corrected_I_load: corrected_currents.loadCorrected,
+            V_batt_main: batt1_v,
+            V_batt_alternate: batt2_v,
+            Corrected_V_batt_main: null,
+            Corrected_V_batt_alternate: null,
+            OCV_batt_main: null,
+            OCV_batt_alternate: null,
+            SoC_batt_main: null,
+            SoC_batt_alternate: null
+        };
+    }
 
+    let main_state_vector = null; let main_state_cov = null;
+    let alt_state_vector = null; let alt_state_cov = null;
     if (batt1_v > BATT_CUTOFF_VOLTAGE) {
         const { name, state, state_vector, rc, voltageEstimate, voltageResidual, netCurrent } = await main_battery.update({
             dt: time_diff_us / 1e6,
             voltage: batt1_v,
             netCurrent: corrected_currents.battery1NetCorrected,
         }, sample_count % SAMPLE_INTERVAL_BEFORE_WRITE === 0);
+        main_state_vector = state_vector; main_state_cov = state.covariance;
 
         if (sample_count % SAMPLE_INTERVAL_BEFORE_WRITE === 0) {
-            if (SAVE_STATES_TO_DB) {
-                await insertMainBatteryState(current_run_id, state_vector, state.covariance, sensor_readings);
-            }
             console.log(`Counter: ${sample_count}, \tSoC Main: ${(100 * state_vector.soc).toFixed(5)}%, \tCorrected Main: ${voltageEstimate.toFixed(5)}V, Correct OCV: ${rc.OCV.toFixed(5)}V, \tCurrent Main: ${corrected_currents.battery1NetCorrected.toFixed(5)}A, \tVoltage Residual: ${voltageResidual.toFixed(5)}V`);
-            payLoad.voltageReadingMain = batt1_v;
-            payLoad.correctedVoltageMain = voltageEstimate;
-            payLoad.OCVMain = rc.OCV;
-            payLoad.socMain = state_vector.soc * 100;
+            sensor_readings.Corrected_V_batt_main = voltageEstimate;
+            sensor_readings.OCV_batt_main = rc.OCV;
+            sensor_readings.SoC_batt_main = state_vector.soc * 100;
         }
     }
 
@@ -383,30 +379,25 @@ async function updateFilter(time_diff_us, mppt_out, load_in, batt1_net, batt2_ne
             dt: time_diff_us / 1e6,
             voltage: batt2_v,
             netCurrent: corrected_currents.battery2NetCorrected,
-        });
-        if (sample_count % SAMPLE_INTERVAL_BEFORE_WRITE === 0) {
-            // Duplicate sensor readaing insertion redundancy. 
-            // To resolve:
-            //  Ccreate new write function -> Slightly higher run time
-            //  Serialise main state + alt state + kcl state + readings db write -> More complicated to handle
-            //  Duplicate entry if alt batt exists -> Higher storage use
+        }, sample_count % SAMPLE_INTERVAL_BEFORE_WRITE === 0);
 
-            if (SAVE_STATES_TO_DB) {
-                await insertAlternateBatteryState(current_run_id, state_vector, state.covariance, sensor_readings);
-            }
+        alt_state_vector = state_vector; alt_state_cov = state.covariance;
+        if (sample_count % SAMPLE_INTERVAL_BEFORE_WRITE === 0) {
             console.log(`Counter: ${sample_count}, \tSoC Alternate: ${(100 * state_vector.soc).toFixed(5)}%, \tCorrected Alt: ${voltageEstimate.toFixed(5)}V, Correct OCV: ${rc.OCV.toFixed(5)}V, \tCurrent Alternate: ${corrected_currents.battery2NetCorrected.toFixed(5)}A, \tVoltage Residual: ${voltageResidual.toFixed(5)}V`);
-            payLoad.voltageReadingAlt = batt2_v;
-            payLoad.correctedVoltageAlt = voltageEstimate;
-            payLoad.OCVAlt = rc.OCV;
-            payLoad.socAlt = state_vector.soc * 100;
+            sensor_readings.Corrected_V_batt_alternate = voltageEstimate;
+            sensor_readings.OCV_batt_alternate = rc.OCV;
+            sensor_readings.SoC_batt_alternate = state_vector.soc * 100;
         }
     }
 
     if (sample_count % SAMPLE_INTERVAL_BEFORE_WRITE === 0) {
+        if (SAVE_STATES_TO_DB) {
+            await insertMainBatteryState(current_run_id, main_state_vector, main_state_cov);
+            await insertAlternateBatteryState(current_run_id, alt_state_vector, alt_state_cov);
+            await insertSensorReadings(current_run_id, sensor_readings);
+        }
         await createOrUpdateRunInfo(current_run_id, total_time, total_load_W, total_mppt_W, total_batt1_net_W, total_batt2_net_W);
-
-        write_to_clients(payLoad);
-        payLoad = {};
+        write_to_clients(sensor_readings);
     }
 
     sample_count++;

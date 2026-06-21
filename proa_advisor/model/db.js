@@ -57,13 +57,13 @@ async function insertSocSensorDataBulk(dataArray) {
     });
 }
 
-async function insertMainBatteryState(run_id, state_vector, covariance_matrix, sensor_readings) {
+async function insertMainBatteryState(run_id, state_vector, covariance_matrix) {
     const db = getDB();
     db.serialize(() => {
         db.run(`
-            INSERT INTO MainBatteryState (run_id, state_vector, covariance_matrix, sensor_readings)
-            VALUES (?, ?, ?, ?)
-        `, [run_id, JSON.stringify(state_vector), JSON.stringify(covariance_matrix), JSON.stringify(sensor_readings)], function (err) {
+            INSERT INTO MainBatteryState (run_id, state_vector, covariance_matrix)
+            VALUES (?, ?, ?)
+        `, [run_id, JSON.stringify(state_vector), JSON.stringify(covariance_matrix)], function (err) {
             if (err) {
                 console.error('Error inserting main battery state data:', err.message);
             }
@@ -71,15 +71,29 @@ async function insertMainBatteryState(run_id, state_vector, covariance_matrix, s
     });
 }
 
-async function insertAlternateBatteryState(run_id, state_vector, covariance_matrix, sensor_readings) {
+async function insertAlternateBatteryState(run_id, state_vector, covariance_matrix) {
     const db = getDB();
     db.serialize(() => {
         db.run(`
-            INSERT INTO AlternateBatteryState (run_id, state_vector, covariance_matrix, sensor_readings)
-            VALUES (?, ?, ?, ?)
-        `, [run_id, JSON.stringify(state_vector), JSON.stringify(covariance_matrix), JSON.stringify(sensor_readings)], function (err) {
+            INSERT INTO AlternateBatteryState (run_id, state_vector, covariance_matrix)
+            VALUES (?, ?, ?)
+        `, [run_id, JSON.stringify(state_vector), JSON.stringify(covariance_matrix)], function (err) {
             if (err) {
                 console.error('Error inserting alternate battery state data:', err.message);
+            }
+        });
+    });
+}
+
+async function insertSensorReadings(run_id, { total_time, total_load_W, total_mppt_W, total_batt1_net_W, total_batt2_net_W, I_batt_main, I_batt_alternate, I_mppt, I_load, Corrected_I_batt_main, Corrected_I_batt_alternate, Corrected_I_mppt, Corrected_I_load, V_batt_main, V_batt_alternate, Corrected_V_batt_main, Corrected_V_batt_alternate, OCV_batt_main, OCV_batt_alternate, SoC_batt_main, SoC_batt_alternate }) {
+    const db = getDB();
+    db.serialize(() => {
+        db.run(`
+            INSERT INTO SensorReadings (run_id, total_time, total_load_W, total_mppt_W, total_batt1_net_W, total_batt2_net_W, I_batt_main, I_batt_alternate, I_mppt, I_load, Corrected_I_batt_main, Corrected_I_batt_alternate, Corrected_I_mppt, Corrected_I_load, V_batt_main, V_batt_alternate, Corrected_V_batt_main, Corrected_V_batt_alternate, OCV_batt_main, OCV_batt_alternate, SoC_batt_main, SoC_batt_alternate)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, [run_id, total_time, total_load_W, total_mppt_W, total_batt1_net_W, total_batt2_net_W, I_batt_main, I_batt_alternate, I_mppt, I_load, Corrected_I_batt_main, Corrected_I_batt_alternate, Corrected_I_mppt, Corrected_I_load, V_batt_main, V_batt_alternate, Corrected_V_batt_main, Corrected_V_batt_alternate, OCV_batt_main, OCV_batt_alternate, SoC_batt_main, SoC_batt_alternate], function (err) {
+            if (err) {
+                console.error('Error inserting sensor readings data:', err.message);
             }
         });
     });
@@ -258,48 +272,6 @@ async function getRunId(time_before_new_run = 5 * 60 * 1000) { // 5 minutes
     });
 }
 
-async function fetchStateAndSensorReadings(tableName = 'MainBatteryState', runId = null, count = 50) {
-    if (tableName !== 'MainBatteryState' && tableName !== 'AlternateBatteryState') {
-        throw new Error("Invalid table name. Must be 'MainBatteryState' or 'AlternateBatteryState'.");
-    }
-
-    const db = getDB();
-
-    return new Promise((resolve, reject) => {
-        const sql = `SELECT id, run_id, timestamp, state_vector, sensor_readings FROM ${tableName} WHERE run_id = ? ORDER BY id ASC LIMIT ?`;
-        db.all(sql, [runId, count], (err, rows) => {
-            if (err) {
-                console.error(`Error retrieving data from ${tableName} for run_id ${runId}:`, err.message);
-                reject(err);
-            } else {
-                // Try to parse JSON if stored as TEXT
-                const parsed = rows.map(r => {
-                    let state_vector = r.state_vector;
-                    let sensor_readings = r.sensor_readings;
-                    try {
-                        if (typeof state_vector === 'string') {
-                            state_vector = JSON.parse(state_vector);
-                        }
-                    } catch (e) {   } 
-                    try {
-                        if (typeof sensor_readings === 'string') {
-                            sensor_readings = JSON.parse(sensor_readings);
-                        }
-                    } catch (e) {   }
-                    return {
-                        id: r.id,
-                        run_id: r.run_id,
-                        timestamp: r.timestamp,
-                        state_vector,
-                        sensor_readings
-                    };
-                });
-                resolve(parsed);
-            }
-        });
-    });
-}
-
 async function createOrUpdateRunInfo(run_id, total_runtime, total_load_W, total_mppt_W, total_batt1_net_W, total_batt2_net_W) {
     const db = getDB();
     return new Promise((resolve, reject) => {
@@ -340,18 +312,28 @@ async function getRunInfo(run_id) {
     });
 }
 
+async function populateInitalChartData(run_id = null, size = 100) {
+    const db = getDB();
+    if (!run_id) {
+        const lastRun = await getRunId();
+        run_id = lastRun.run_id;
+    }
+    // return
+    
+}
+
 module.exports = {
     insertSocSensorData,
     insertSocSensorDataBulk,
     insertMainBatteryState,
     insertAlternateBatteryState,
+    insertSensorReadings,
     insertKCLCorrectionState,
     getBatteryRC_SoC,
     getBatteryRC_OCV,
     getLastMainBatteryState,
     getLastAlternateBatteryState,
     getRunId,
-    fetchStateAndSensorReadings,
     getLastKCLCorrectionState,
     createOrUpdateRunInfo,
     getRunInfo

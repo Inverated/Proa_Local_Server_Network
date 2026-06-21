@@ -11,7 +11,8 @@ const tables_initialized = {
     KCL_Correctionstate: false,
     MainRCMapping: false,
     AlternateRCMapping: false,
-    RunInfo: false
+    RunInfo: false,
+    SensorReadings: false
 };
 
 let db = null;
@@ -83,8 +84,7 @@ function initializeDatabase() {
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
                 run_id INTEGER NOT NULL,
                 state_vector TEXT NOT NULL,
-                covariance_matrix TEXT NOT NULL,
-                sensor_readings TEXT NOT NULL
+                covariance_matrix TEXT NOT NULL
             )`, (err) => {
                 if (err) {
                     console.error('Error creating MainBatteryState table:', err.message);
@@ -100,8 +100,7 @@ function initializeDatabase() {
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
                 run_id INTEGER NOT NULL,
                 state_vector TEXT NOT NULL,
-                covariance_matrix TEXT NOT NULL,
-                sensor_readings TEXT NOT NULL
+                covariance_matrix TEXT NOT NULL
             )`, (err) => {
                 if (err) {
                     console.error('Error creating AlternateBatteryState table:', err.message);
@@ -182,6 +181,40 @@ function initializeDatabase() {
                         reject(err);
                     } else {
                         tables_initialized.RunInfo = true;
+                    }
+                });
+            db.run(`
+                CREATE TABLE IF NOT EXISTS SensorReadings (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    run_id INTEGER,
+                    total_time INTEGER,
+                    total_load_W REAL,
+                    total_mppt_W REAL,
+                    total_batt1_net_W REAL,
+                    total_batt2_net_W REAL,
+                    I_batt_main REAL,
+                    I_batt_alternate REAL,
+                    I_mppt REAL,
+                    I_load REAL,
+                    Corrected_I_batt_main REAL,
+                    Corrected_I_batt_alternate REAL,
+                    Corrected_I_mppt REAL,
+                    Corrected_I_load REAL,
+                    V_batt_main REAL,
+                    V_batt_alternate REAL,
+                    Corrected_V_batt_main REAL,
+                    Corrected_V_batt_alternate REAL,
+                    OCV_batt_main REAL,
+                    OCV_batt_alternate REAL,
+                    SoC_batt_main REAL,
+                    SoC_batt_alternate REAL,
+                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+                )`, (err) => {
+                    if (err) {
+                        console.error('Error creating SensorReadings table:', err.message);
+                        reject(err);
+                    } else {
+                        tables_initialized.SensorReadings = true;
                     }
                 });
         })
