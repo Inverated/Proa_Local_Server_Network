@@ -10,6 +10,7 @@ app.use(express.urlencoded({ extended: true }));
 
 
 const { startDB, insertBatteryState } = require('./model/power_management_models');
+const { populateInitalChartData } = require('./model/db');
 const { run_test } = require("./lib/ekf_test")
 const { startSerialReader } = require('./lib/serialReader');
 
@@ -45,6 +46,16 @@ app.get("/data_stream", (req, res) => {
         remove_client(res);
     });
 })
+
+app.get("/initial_data", async (req, res) => {
+    try {
+        const initialData = await populateInitalChartData();
+        res.json(initialData);
+    } catch (error) {
+        console.error("Error fetching initial data:", error);
+        res.status(500).send("Error fetching initial data");
+    }
+});
 
 app.get("/", (req, res) => {
     res.send("Hello World!");

@@ -318,8 +318,18 @@ async function populateInitalChartData(run_id = null, size = 100) {
         const lastRun = await getRunId();
         run_id = lastRun.run_id;
     }
-    // return
-    
+    return new Promise((resolve, reject) => {
+        db.all(`
+            SELECT * FROM SensorReadings WHERE run_id = ? ORDER BY total_time DESC LIMIT ?
+        `, [run_id, size], (err, rows) => {
+            if (err) {
+                console.error('Error retrieving initial chart data:', err.message);
+                reject(err);
+            } else {
+                resolve(rows);
+            }
+        });
+    });
 }
 
 module.exports = {
@@ -336,5 +346,6 @@ module.exports = {
     getRunId,
     getLastKCLCorrectionState,
     createOrUpdateRunInfo,
-    getRunInfo
+    getRunInfo, 
+    populateInitalChartData
 };

@@ -26,10 +26,10 @@ Batt 1: Main battery, LiNMC, 2s1p pack, 48.0V nominal, 104Ah
 Batt 2: Alternate battery, LiFePO4, 2s1p pack, 48.0V nominal, 50Ah
 */
 
-const SAMPLE_INTERVAL_BEFORE_WRITE  = 5000;
+const SAMPLE_INTERVAL_BEFORE_WRITE  = 1000;
 const SAVE_STATES_TO_DB             = true;
 const SAVE_ADC_READINGS_TO_DB       = false;
-const SAMPLE_INTERVAL_MS            = 10;       // Only for test data
+const SAMPLE_INTERVAL_MS            = 1000;       // Only for test data
 let sample_count                    = 0;
 let current_run_id                  = null;
 
@@ -85,9 +85,11 @@ async function onNewSample(sample, force_log = false, is_test = false) {
             const { run_id, is_new } = run;
             console.log(`Current run_id: ${run_id}, is_new: ${is_new}`);
             if (!is_new) {
-                last_main_battery_state         = await getLastMainBatteryState(run_id);
-                last_alternate_battery_state    = await getLastAlternateBatteryState(run_id);
-                last_kcl_correction_state       = await getLastKCLCorrectionState(run_id);
+                if (!is_test) {
+                    last_main_battery_state         = await getLastMainBatteryState(run_id);
+                    last_alternate_battery_state    = await getLastAlternateBatteryState(run_id);
+                    last_kcl_correction_state       = await getLastKCLCorrectionState(run_id);
+                }
                 const runInfo = await getRunInfo(run_id);
                 if (runInfo) {
                     total_load_W = runInfo.total_load_W;
@@ -346,7 +348,7 @@ async function updateFilter(time_diff_us, mppt_out, load_in, batt1_net, batt2_ne
             Corrected_I_mppt: corrected_currents.chargeCorrected,
             Corrected_I_load: corrected_currents.loadCorrected,
             V_batt_main: batt1_v,
-            V_batt_alternate: batt2_v,
+            V_batt_alternate: batt2_v > BATT_CUTOFF_VOLTAGE ? batt2_v : null,
             Corrected_V_batt_main: null,
             Corrected_V_batt_alternate: null,
             OCV_batt_main: null,
@@ -406,7 +408,7 @@ async function updateFilter(time_diff_us, mppt_out, load_in, batt1_net, batt2_ne
         data_array = [];
     }
 
-    if (!is_test && sample_count % SAMPLE_INTERVAL_BEFORE_WRITE === 0 && SAMPLE_INTERVAL_MS > 0) {
+    if (is_test && sample_count % SAMPLE_INTERVAL_BEFORE_WRITE === 0 && SAMPLE_INTERVAL_MS > 0) {
         await new Promise(resolve => setTimeout(resolve, SAMPLE_INTERVAL_MS)); // Simulate delay for real-time processing
     }
 }
