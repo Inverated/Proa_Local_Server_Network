@@ -113,6 +113,46 @@ async function insertKCLCorrectionState(run_id, biases, covariance_matrix) {
     });
 }
 
+function runSQL(db, sql, params = []) {
+    return new Promise((resolve, reject) => {
+        db.run(sql, params, function (err) {
+            if (err) {
+                reject(err);
+            } else {
+                resolve(this);
+            }
+        });
+    });
+}
+
+async function insertAllStatesAndReadings(run_id, { main_state_vector, main_state_cov}, { alt_state_vector, alt_state_cov }, { total_time, total_load_W, total_mppt_W, total_batt1_net_W, total_batt2_net_W, I_batt_main, I_batt_alternate, I_mppt, I_load, Corrected_I_batt_main, Corrected_I_batt_alternate, Corrected_I_mppt, Corrected_I_load, V_batt_main, V_batt_alternate, Corrected_V_batt_main, Corrected_V_batt_alternate, OCV_batt_main, OCV_batt_alternate, SoC_batt_main, SoC_batt_alternate }, { kcl_cov, kcl_biases }) {
+    // Insert main, alt, kcl and sensor readings in a single transaction to avoid backlog
+    const db = getDB();
+    try {
+        await runSQL(db, 'BEGIN TRANSACTION');
+        await runSQL(db, `
+            INSERT INTO MainBatteryState (run_id, state_vector, covariance_matrix)
+            VALUES (?, ?, ?)
+        `, [run_id, JSON.stringify(main_state_vector), JSON.stringify(main_state_cov)]);
+        await runSQL(db, `
+            INSERT INTO AlternateBatteryState (run_id, state_vector, covariance_matrix)
+            VALUES (?, ?, ?)
+        `, [run_id, JSON.stringify(alt_state_vector), JSON.stringify(alt_state_cov)]);
+        await runSQL(db, `
+            INSERT INTO SensorReadings (run_id, total_time, total_load_W, total_mppt_W, total_batt1_net_W, total_batt2_net_W, I_batt_main, I_batt_alternate, I_mppt, I_load, Corrected_I_batt_main, Corrected_I_batt_alternate, Corrected_I_mppt, Corrected_I_load, V_batt_main, V_batt_alternate, Corrected_V_batt_main, Corrected_V_batt_alternate, OCV_batt_main, OCV_batt_alternate, SoC_batt_main, SoC_batt_alternate)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, [run_id, total_time, total_load_W, total_mppt_W, total_batt1_net_W, total_batt2_net_W, I_batt_main, I_batt_alternate, I_mppt, I_load, Corrected_I_batt_main, Corrected_I_batt_alternate, Corrected_I_mppt, Corrected_I_load, V_batt_main, V_batt_alternate, Corrected_V_batt_main, Corrected_V_batt_alternate, OCV_batt_main, OCV_batt_alternate, SoC_batt_main, SoC_batt_alternate]);
+        await runSQL(db, `
+            INSERT INTO KCL_Correctionstate (run_id, biases, covariance_matrix)
+            VALUES (?, ?, ?)
+        `, [run_id, JSON.stringify(kcl_biases), JSON.stringify(kcl_cov)]);
+        await runSQL(db, 'COMMIT');
+    } catch (err) {
+        await runSQL(db, 'ROLLBACK');
+        console.error('Error inserting states and readings in transaction:', err.message);
+    }
+}
+
 const persistent_main_RC = [];
 const persistent_alternate_RC = [];
 
@@ -244,7 +284,7 @@ async function getLastKCLCorrectionState() {
     });
 }
 
-async function getRunId(time_before_new_run = 5 * 60 * 1000) { // 5 minutes
+async function getRunId(use_new = false, time_before_new_run = 5 * 60 * 1000) { // 5 minutes
     const db = getDB();
     return new Promise((resolve, reject) => {
         db.get(`
@@ -262,7 +302,7 @@ async function getRunId(time_before_new_run = 5 * 60 * 1000) { // 5 minutes
                 const time_last = new Date(row.timestamp.replace(' ', 'T') + 'Z'); // Convert to ISO format for Date parsing
                 const time_diff = time_now - time_last;
                 
-                if (time_diff > time_before_new_run) {
+                if (time_diff > time_before_new_run || use_new) {
                     resolve({ run_id: row.run_id + 1, is_new: true }); // Start new run
                 } else {
                     resolve({ run_id: row.run_id, is_new: false });
@@ -347,5 +387,6 @@ module.exports = {
     getLastKCLCorrectionState,
     createOrUpdateRunInfo,
     getRunInfo, 
-    populateInitalChartData
+    populateInitalChartData,
+    insertAllStatesAndReadings,
 };

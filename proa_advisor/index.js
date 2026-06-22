@@ -12,6 +12,7 @@ app.use(express.urlencoded({ extended: true }));
 const { startDB, insertBatteryState } = require('./model/power_management_models');
 const { populateInitalChartData } = require('./model/db');
 const { run_test } = require("./lib/ekf_test")
+const { getCurrentRunId } = require("./lib/kalman_filter");
 const { startSerialReader } = require('./lib/serialReader');
 
 const OVERRIDE_DB = false; // Set to true to override existing data in RC mapping tables
@@ -26,8 +27,8 @@ startDB().then(() => {
 }).then((count) => {
     count && console.log(`Inserted ${count} records into AlternateRCMapping.`);
 }).then(() => {
-    run_test();
-    //startSerialReader();
+    //run_test();
+    startSerialReader();
 });
 
 const { add_client, get_clients, remove_client } = require("./handler/client_transmission");
@@ -49,7 +50,8 @@ app.get("/data_stream", (req, res) => {
 
 app.get("/initial_data", async (req, res) => {
     try {
-        const initialData = await populateInitalChartData();
+        const runId = await getCurrentRunId();
+        const initialData = await populateInitalChartData(runId);
         res.json(initialData);
     } catch (error) {
         console.error("Error fetching initial data:", error);

@@ -2,7 +2,7 @@ const { Battery2RCEKF } = require("./kalman_filter_helper/filter")
 const { CurrentKCLCorrector } = require("./kalman_filter_helper/kcl_corrector")
 const { adc_to_current, adc_to_voltage } = require("./adc_converter")
 const { load_battery_constants } = require('./kalman_filter_helper/helper');
-const { insertMainBatteryState, insertAlternateBatteryState, insertSensorReadings, insertKCLCorrectionState, insertSocSensorData, insertSocSensorDataBulk, getLastMainBatteryState, getLastAlternateBatteryState, getLastKCLCorrectionState, getRunId, createOrUpdateRunInfo, getRunInfo } = require("../model/db")
+const { insertMainBatteryState, insertAlternateBatteryState, insertSensorReadings, insertKCLCorrectionState, insertSocSensorData, insertSocSensorDataBulk, insertAllStatesAndReadings, getLastMainBatteryState, getLastAlternateBatteryState, getLastKCLCorrectionState, getRunId, createOrUpdateRunInfo, getRunInfo } = require("../model/db")
 const { getBatteryRC_OCV } = require("../model/db");
 const { write_to_clients } = require('../handler/client_transmission')
 
@@ -26,9 +26,11 @@ Batt 1: Main battery, LiNMC, 2s1p pack, 48.0V nominal, 104Ah
 Batt 2: Alternate battery, LiFePO4, 2s1p pack, 48.0V nominal, 50Ah
 */
 
-const SAMPLE_INTERVAL_BEFORE_WRITE  = 1000;
+const ENABLE_EKF_RESTORE = false;
+const USE_NEW_RUN_ID = true;
+const SAMPLE_INTERVAL_BEFORE_WRITE  = 100;
 const SAVE_STATES_TO_DB             = true;
-const SAVE_ADC_READINGS_TO_DB       = false;
+const SAVE_ADC_READINGS_TO_DB       = true;
 const SAMPLE_INTERVAL_MS            = 1000;       // Only for test data
 let sample_count                    = 0;
 let current_run_id                  = null;
@@ -75,17 +77,17 @@ let last_kcl_correction_state       = null;
 
 async function onNewSample(sample, force_log = false, is_test = false) {
     activeUpdates++;
-    if (activeUpdates % 100 === 0) {
+    if (activeUpdates % 20 === 0) {
         console.log("Background updates:", activeUpdates);
     }
 
     try {
         if (current_run_id === null) {
-            const run = await getRunId();
+            const run = await getRunId(use_new = USE_NEW_RUN_ID);
             const { run_id, is_new } = run;
             console.log(`Current run_id: ${run_id}, is_new: ${is_new}`);
             if (!is_new) {
-                if (!is_test) {
+                if (!is_test && ENABLE_EKF_RESTORE) {
                     last_main_battery_state         = await getLastMainBatteryState(run_id);
                     last_alternate_battery_state    = await getLastAlternateBatteryState(run_id);
                     last_kcl_correction_state       = await getLastKCLCorrectionState(run_id);
@@ -111,6 +113,9 @@ async function onNewSample(sample, force_log = false, is_test = false) {
         let batt2_net = adc_to_current(a3, 1);
         let batt1_v = adc_to_voltage(a6, 5) * VOLTAGE_DIVIDER_RATIO;
         let batt2_v = adc_to_voltage(a7, 5) * VOLTAGE_DIVIDER_RATIO;
+
+        // Temporary fixes
+        batt1_v -= 2.0;
 
         try {
             [mppt_out, load_in, batt1_net, batt2_net, batt1_v, batt2_v] = detectAndCorrectFlips(mppt_out, load_in, batt1_net, batt2_net, batt1_v, batt2_v);
@@ -269,7 +274,8 @@ async function onNewSample(sample, force_log = false, is_test = false) {
             getMedian(batt1_net_window),
             getMedian(batt2_net_window),
             getMedian(batt1_v_window),
-            getMedian(batt2_v_window)
+            getMedian(batt2_v_window),
+            is_test
         );
 
         time_diff_window = [];
@@ -285,7 +291,7 @@ async function onNewSample(sample, force_log = false, is_test = false) {
     }
 }
 
-async function updateFilter(time_diff_us, mppt_out, load_in, batt1_net, batt2_net, batt1_v, batt2_v) {
+async function updateFilter(time_diff_us, mppt_out, load_in, batt1_net, batt2_net, batt1_v, batt2_v, is_test = false) {
     if (!kcl_corrector) {
         kcl_corrector = new CurrentKCLCorrector({
             noise: {
@@ -323,10 +329,11 @@ async function updateFilter(time_diff_us, mppt_out, load_in, batt1_net, batt2_ne
     }
     corrected_currents = currents;
     
+    let kcl_cov = null;
+    let kcl_biases = null;
     if (sample_count % SAMPLE_INTERVAL_BEFORE_WRITE === 0) {
-        if (SAVE_STATES_TO_DB) {
-            await insertKCLCorrectionState(current_run_id, state.covariance, biases);
-        }
+        kcl_cov = state.covariance;
+        kcl_biases = biases;
         console.log("\nInput values - \tMain: " + batt1_v.toFixed(5) + "V, Alt: " + batt2_v.toFixed(5) + "V, \t\tLoad: " + load_in.toFixed(5) + "A, \tCharge: " + mppt_out.toFixed(5) + "A, \tBatt1: " + batt1_net.toFixed(5) + "A, \tBatt2: " + batt2_net.toFixed(5) + "A");
         console.log(`Counter: ${sample_count}, KCL Corrected Currents: \t\t\tLoad: ${corrected_currents.loadCorrected.toFixed(5)}A, \tCharge: ${corrected_currents.chargeCorrected.toFixed(5)}A, \tBatt1: ${corrected_currents.battery1NetCorrected.toFixed(5)}A, \tBatt2: ${corrected_currents.battery2NetCorrected.toFixed(5)}A`);
     }
@@ -356,6 +363,7 @@ async function updateFilter(time_diff_us, mppt_out, load_in, batt1_net, batt2_ne
             SoC_batt_main: null,
             SoC_batt_alternate: null
         };
+        console.log(load_in, mppt_out)
     }
 
     let main_state_vector = null; let main_state_cov = null;
@@ -394,9 +402,12 @@ async function updateFilter(time_diff_us, mppt_out, load_in, batt1_net, batt2_ne
 
     if (sample_count % SAMPLE_INTERVAL_BEFORE_WRITE === 0) {
         if (SAVE_STATES_TO_DB) {
-            await insertMainBatteryState(current_run_id, main_state_vector, main_state_cov);
-            await insertAlternateBatteryState(current_run_id, alt_state_vector, alt_state_cov);
-            await insertSensorReadings(current_run_id, sensor_readings);
+            await insertAllStatesAndReadings(current_run_id, 
+                { main_state_vector, main_state_cov }, 
+                { alt_state_vector, alt_state_cov }, 
+                sensor_readings,
+                { kcl_cov, kcl_biases }
+            );
         }
         await createOrUpdateRunInfo(current_run_id, total_time, total_load_W, total_mppt_W, total_batt1_net_W, total_batt2_net_W);
         write_to_clients(sensor_readings);
@@ -446,7 +457,7 @@ function detectAndCorrectFlips(mppt_out, load_in, batt1_net, batt2_net, batt1_v,
 
 async function getCurrentRunId() {
     if (current_run_id === null) {
-        current_run_id = await getRunId();
+        current_run_id = await getRunId(use_new = USE_NEW_RUN_ID).then(run => run.run_id);
     }
     return current_run_id;
 }

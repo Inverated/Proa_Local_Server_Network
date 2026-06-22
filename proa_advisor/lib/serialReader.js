@@ -76,6 +76,7 @@ function additiveChecksum(readings, counter) {
 }
 
 const queue = [];
+const QUEUE_ALERT = 2000;
 function processBuffer() {
     // Scan for a valid packet starting at offset 0, discard bytes until we find one
     while (recvBuf.length >= PACKET_BYTES) {
@@ -137,7 +138,11 @@ function processBuffer() {
         recvBuf = recvBuf.subarray(PACKET_BYTES);
     }
     consumeQueue();
+    if (queue.length > QUEUE_ALERT) {
+        console.warn(`Queue size: ${queue.length}`);
+    }
 }
+
 let consuming = false;
 async function consumeQueue() {
     if (consuming) return;

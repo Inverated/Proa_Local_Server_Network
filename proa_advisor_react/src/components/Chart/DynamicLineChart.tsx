@@ -48,11 +48,13 @@ export default function DynamicLineChart({ title, lineNames, xAxis, yAxis }: Dyn
                 formatter: (value: number) => value < 60 ? `${Number(value).toFixed(2)} s` : `${(value / 60).toFixed(2)} min`
             },
         },
+
         yAxis: {
             type: "value",
             scale: yFixed ? false : true,
             axisLabel: {
-                formatter: (value: number) => `${value.toFixed(significantDigits)} ${yUnit}`
+                formatter: (value: number) => `${value.toFixed(significantDigits)
+                    } ${yUnit}`
             },
             name: yTitle ? `${yTitle} (${yUnit})` : "",
             nameLocation: "middle",
@@ -67,11 +69,12 @@ export default function DynamicLineChart({ title, lineNames, xAxis, yAxis }: Dyn
                 const tooltipLines = params.map((param: any) => {
                     const lineName = param.seriesName;
                     const yValue = param.data;
-                    return `${lineName}: ${yValue.toFixed(significantDigits)} ${yUnit}`;
+                    return `${lineName}: ${yValue.toFixed(significantDigits)} ${yUnit} `;
                 });
-                return `Time: ${Number(xValue).toFixed(2)} s<br>${tooltipLines.join("<br>")}`;
+                return `Time: ${Number(xValue).toFixed(2)} s <br> ${tooltipLines.join("<br>")} `;
             }
         },
+        minInterval: 0.05,
     };
 
 

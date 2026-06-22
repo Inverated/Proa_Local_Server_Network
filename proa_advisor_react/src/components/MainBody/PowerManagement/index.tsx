@@ -78,22 +78,22 @@ export default function PowerManagement() {
                     if (initialData && initialData.length > 0) {
                         initialData.forEach((data) => {
                             setXData((prevXData) => [...prevXData, data.total_time].slice(-defaultLength));
-                            data.V_batt_main && setVoltageReadingMain((prev) => [...prev, data.V_batt_main as number].slice(-defaultLength));
-                            data.Corrected_V_batt_main && setCorrectedVoltageMain((prev) => [...prev, data.Corrected_V_batt_main as number].slice(-defaultLength));
-                            data.OCV_batt_main && setOCVMain((prev) => [...prev, data.OCV_batt_main as number].slice(-defaultLength));
-                            data.SoC_batt_main && setSocMain((prev) => [...prev, data.SoC_batt_main as number].slice(-defaultLength));
-                            data.V_batt_alternate && setVoltageReadingAlt((prev) => [...prev, data.V_batt_alternate as number].slice(-defaultLength));
-                            data.Corrected_V_batt_alternate && setCorrectedVoltageAlt((prev) => [...prev, data.Corrected_V_batt_alternate as number].slice(-defaultLength));
-                            data.OCV_batt_alternate && setOCVAlt((prev) => [...prev, data.OCV_batt_alternate as number].slice(-defaultLength));
-                            data.SoC_batt_alternate && setSocAlt((prev) => [...prev, data.SoC_batt_alternate as number].slice(-defaultLength));
-                            data.I_load && setCurrentLoad((prev) => [...prev, data.I_load as number].slice(-defaultLength));
-                            data.I_mppt && setCurrentMPPT((prev) => [...prev, data.I_mppt as number].slice(-defaultLength));
-                            data.I_batt_main && setCurrentNetMain((prev) => [...prev, data.I_batt_main as number].slice(-defaultLength));
-                            data.I_batt_alternate && setCurrentNetAlt((prev) => [...prev, data.I_batt_alternate as number].slice(-defaultLength));
-                            data.Corrected_I_load && setCorrectedCurrentLoad((prev) => [...prev, data.Corrected_I_load as number].slice(-defaultLength));
-                            data.Corrected_I_mppt && setCorrectedCurrentMPPT((prev) => [...prev, data.Corrected_I_mppt as number].slice(-defaultLength));
-                            data.Corrected_I_batt_main && setCorrectedCurrentNetMain((prev) => [...prev, data.Corrected_I_batt_main as number].slice(-defaultLength));
-                            data.Corrected_I_batt_alternate && setCorrectedCurrentNetAlt((prev) => [...prev, data.Corrected_I_batt_alternate as number].slice(-defaultLength));
+                            data.V_batt_main != undefined && setVoltageReadingMain((prev) => [...prev, data.V_batt_main as number].slice(-defaultLength));
+                            data.Corrected_V_batt_main != undefined && setCorrectedVoltageMain((prev) => [...prev, data.Corrected_V_batt_main as number].slice(-defaultLength));
+                            data.OCV_batt_main != undefined && setOCVMain((prev) => [...prev, data.OCV_batt_main as number].slice(-defaultLength));
+                            data.SoC_batt_main != undefined && setSocMain((prev) => [...prev, data.SoC_batt_main as number].slice(-defaultLength));
+                            data.V_batt_alternate != undefined && setVoltageReadingAlt((prev) => [...prev, data.V_batt_alternate as number].slice(-defaultLength));
+                            data.Corrected_V_batt_alternate != undefined && setCorrectedVoltageAlt((prev) => [...prev, data.Corrected_V_batt_alternate as number].slice(-defaultLength));
+                            data.OCV_batt_alternate != undefined && setOCVAlt((prev) => [...prev, data.OCV_batt_alternate as number].slice(-defaultLength));
+                            data.SoC_batt_alternate != undefined && setSocAlt((prev) => [...prev, data.SoC_batt_alternate as number].slice(-defaultLength));
+                            data.I_load != undefined && setCurrentLoad((prev) => [...prev, data.I_load as number].slice(-defaultLength));
+                            data.I_mppt != undefined && setCurrentMPPT((prev) => [...prev, data.I_mppt as number].slice(-defaultLength));
+                            data.I_batt_main != undefined && setCurrentNetMain((prev) => [...prev, data.I_batt_main as number].slice(-defaultLength));
+                            data.I_batt_alternate != undefined && setCurrentNetAlt((prev) => [...prev, data.I_batt_alternate as number].slice(-defaultLength));
+                            data.Corrected_I_load != undefined && setCorrectedCurrentLoad((prev) => [...prev, data.Corrected_I_load as number].slice(-defaultLength));
+                            data.Corrected_I_mppt != undefined && setCorrectedCurrentMPPT((prev) => [...prev, data.Corrected_I_mppt as number].slice(-defaultLength));
+                            data.Corrected_I_batt_main != undefined && setCorrectedCurrentNetMain((prev) => [...prev, data.Corrected_I_batt_main as number].slice(-defaultLength));
+                            data.Corrected_I_batt_alternate != undefined && setCorrectedCurrentNetAlt((prev) => [...prev, data.Corrected_I_batt_alternate as number].slice(-defaultLength));
                         });
                     }
                 } catch (error) {
@@ -118,22 +118,22 @@ export default function PowerManagement() {
     function populateData(data: PowerData) {
         const slice_length = parseInt(lengthSliderRef.current?.value || displayDataLength.toString());
         setXData((prevXData) => [...prevXData, data.total_time].slice(-slice_length));
-        data.V_batt_main && setVoltageReadingMain((prev) => [...prev, data.V_batt_main as number].slice(-slice_length));
-        data.Corrected_V_batt_main && setCorrectedVoltageMain((prev) => [...prev, data.Corrected_V_batt_main as number].slice(-slice_length));
-        data.OCV_batt_main && setOCVMain((prev) => [...prev, data.OCV_batt_main as number].slice(-slice_length));
-        data.SoC_batt_main && setSocMain((prev) => [...prev, data.SoC_batt_main as number].slice(-slice_length));
-        data.V_batt_alternate && setVoltageReadingAlt((prev) => [...prev, data.V_batt_alternate as number].slice(-slice_length));
-        data.Corrected_V_batt_alternate && setCorrectedVoltageAlt((prev) => [...prev, data.Corrected_V_batt_alternate as number].slice(-slice_length));
-        data.OCV_batt_alternate && setOCVAlt((prev) => [...prev, data.OCV_batt_alternate as number].slice(-slice_length));
-        data.SoC_batt_alternate && setSocAlt((prev) => [...prev, data.SoC_batt_alternate as number].slice(-slice_length));
-        data.I_load && setCurrentLoad((prev) => [...prev, data.I_load as number].slice(-slice_length));
-        data.I_mppt && setCurrentMPPT((prev) => [...prev, data.I_mppt as number].slice(-slice_length));
-        data.I_batt_main && setCurrentNetMain((prev) => [...prev, data.I_batt_main as number].slice(-slice_length));
-        data.I_batt_alternate && setCurrentNetAlt((prev) => [...prev, data.I_batt_alternate as number].slice(-slice_length));
-        data.Corrected_I_load && setCorrectedCurrentLoad((prev) => [...prev, data.Corrected_I_load as number].slice(-slice_length));
-        data.Corrected_I_mppt && setCorrectedCurrentMPPT((prev) => [...prev, data.Corrected_I_mppt as number].slice(-slice_length));
-        data.Corrected_I_batt_main && setCorrectedCurrentNetMain((prev) => [...prev, data.Corrected_I_batt_main as number].slice(-slice_length));
-        data.Corrected_I_batt_alternate && setCorrectedCurrentNetAlt((prev) => [...prev, data.Corrected_I_batt_alternate as number].slice(-slice_length));
+        data.V_batt_main != undefined && setVoltageReadingMain((prev) => [...prev, data.V_batt_main as number].slice(-slice_length));
+        data.Corrected_V_batt_main != undefined && setCorrectedVoltageMain((prev) => [...prev, data.Corrected_V_batt_main as number].slice(-slice_length));
+        data.OCV_batt_main != undefined && setOCVMain((prev) => [...prev, data.OCV_batt_main as number].slice(-slice_length));
+        data.SoC_batt_main != undefined && setSocMain((prev) => [...prev, data.SoC_batt_main as number].slice(-slice_length));
+        data.V_batt_alternate != undefined && setVoltageReadingAlt((prev) => [...prev, data.V_batt_alternate as number].slice(-slice_length));
+        data.Corrected_V_batt_alternate != undefined && setCorrectedVoltageAlt((prev) => [...prev, data.Corrected_V_batt_alternate as number].slice(-slice_length));
+        data.OCV_batt_alternate != undefined && setOCVAlt((prev) => [...prev, data.OCV_batt_alternate as number].slice(-slice_length));
+        data.SoC_batt_alternate != undefined && setSocAlt((prev) => [...prev, data.SoC_batt_alternate as number].slice(-slice_length));
+        data.I_load != undefined && setCurrentLoad((prev) => [...prev, data.I_load as number].slice(-slice_length));
+        data.I_mppt != undefined && setCurrentMPPT((prev) => [...prev, data.I_mppt as number].slice(-slice_length));
+        data.I_batt_main != undefined && setCurrentNetMain((prev) => [...prev, data.I_batt_main as number].slice(-slice_length));
+        data.I_batt_alternate != undefined && setCurrentNetAlt((prev) => [...prev, data.I_batt_alternate as number].slice(-slice_length));
+        data.Corrected_I_load != undefined && setCorrectedCurrentLoad((prev) => [...prev, data.Corrected_I_load as number].slice(-slice_length));
+        data.Corrected_I_mppt != undefined && setCorrectedCurrentMPPT((prev) => [...prev, data.Corrected_I_mppt as number].slice(-slice_length));
+        data.Corrected_I_batt_main != undefined && setCorrectedCurrentNetMain((prev) => [...prev, data.Corrected_I_batt_main as number].slice(-slice_length));
+        data.Corrected_I_batt_alternate != undefined && setCorrectedCurrentNetAlt((prev) => [...prev, data.Corrected_I_batt_alternate as number].slice(-slice_length));
     };
 
     useEffect(() => {
@@ -152,7 +152,7 @@ export default function PowerManagement() {
                 <p>Number of points: {displayDataLength}</p>
                 <Slider 
                     ref={lengthSliderRef}
-                    min={50} max={1000} step={10} 
+                    min={5} max={1000} step={5} 
                     valueLabelDisplay="auto" 
                     value={displayDataLength} 
                     onChange={(event, value) => setDisplayDataLength(value)} />
@@ -209,7 +209,7 @@ export default function PowerManagement() {
                                 yTitle: "State of Charge",
                                 yUnit: "%",
                                 yFixed: false,
-                                significantDigits: 2
+                                significantDigits: 3
                             }
                         }
                     />
@@ -229,7 +229,7 @@ export default function PowerManagement() {
                                     yTitle: "State of Charge",
                                     yUnit: "%",
                                     yFixed: false,
-                                    significantDigits: 2
+                                    significantDigits: 3
                                 }
                             }
                         />
