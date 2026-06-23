@@ -226,13 +226,11 @@ async function onNewSample(sample, force_log = false, is_test = false) {
                 const { SoC, R0, R1, C1, C2, Tau1, Tau2, OCV } = rc_values[0];
                 avg_kcl_noise.push(sigma_kcl);
 
-                // Battery for alternate used in this case is old and unreliable
-                // need to fine tune the process noise as both voltage and rc are unreliable
                 const noise = { 
-                    socProcess: 1e-12,
-                    rcProcess: 8e-11,
-                    voltage: 1e-5,
-                    //voltage: sigma_v ** 2,
+                    socProcess: 1e-22,
+                    rcProcess: 1e-20,
+                    //voltage: 1e-5,
+                    voltage: sigma_v ** 2,
                 }
                 const initial = {
                     soc: SoC,
@@ -265,15 +263,16 @@ async function onNewSample(sample, force_log = false, is_test = false) {
             }
         }
 
+        time_diff_window.push(Number(time_diff_us));
+        mppt_out_window.push(Number(mppt_out));
+        load_in_window.push(Number(load_in));
+        batt1_net_window.push(Number(batt1_net));
+        batt2_net_window.push(Number(batt2_net));
+        batt1_v_window.push(Number(batt1_v));
+        batt2_v_window.push(Number(batt2_v));
+        window_counter++;
+
         if (window_counter < MEDIAN_WINDOW_SIZE) {
-            time_diff_window.push(Number(time_diff_us));
-            mppt_out_window.push(Number(mppt_out));
-            load_in_window.push(Number(load_in));
-            batt1_net_window.push(Number(batt1_net));
-            batt2_net_window.push(Number(batt2_net));
-            batt1_v_window.push(Number(batt1_v));
-            batt2_v_window.push(Number(batt2_v));
-            window_counter++;
             return; // Wait until we have enough samples to compute median
         }
 

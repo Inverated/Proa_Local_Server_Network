@@ -15,7 +15,7 @@ const { run_test } = require("./lib/ekf_test")
 const { getCurrentRunId } = require("./lib/kalman_filter");
 const { startSerialReader } = require('./lib/serialReader');
 
-const OVERRIDE_DB = false; // Set to true to override existing data in RC mapping tables
+const OVERRIDE_DB = true; // Set to true to override existing data in RC mapping tables
 
 startDB().then(() => {
     console.log("Database started successfully.");
@@ -23,7 +23,7 @@ startDB().then(() => {
 }).then((count) => {
     count && console.log(`Inserted ${count} records into MainRCMapping.`);
 }).then(() => {
-    return insertBatteryState(battery_type = "LiNMC", tableName = "AlternateRCMapping", override = OVERRIDE_DB);
+    return insertBatteryState("LiFePO4", "AlternateRCMapping", OVERRIDE_DB);
 }).then((count) => {
     count && console.log(`Inserted ${count} records into AlternateRCMapping.`);
 }).then(() => {

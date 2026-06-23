@@ -41,13 +41,13 @@ export default function DynamicLineChart({ title, lineNames, xAxis, yAxis }: Dyn
         },
         xAxis: {
             type: "category",
-            name: "Time Passed" + (xData[xData.length - 1] < 60 ? " (s)" : " (min)"),
+            name: "Time Passed",
             nameLocation: "middle",
             nameGap: 30,
             data: xData,
             minInterval: 1,
             axisLabel: {
-                formatter: (value: number) => value < 60 ? `${Number(value).toFixed(2)} s` : `${(value / 60).toFixed(2)} min`
+                formatter: (value: number) => formatTime(Number(value))
             },
         },
 
@@ -73,11 +73,26 @@ export default function DynamicLineChart({ title, lineNames, xAxis, yAxis }: Dyn
                     const yValue = param.data;
                     return `${lineName}: ${yValue.toFixed(significantDigits)} ${yUnit} `;
                 });
-                return `Time: ${Number(xValue).toFixed(2)} s <br> ${tooltipLines.join("<br>")} `;
+                return `Time: ${formatTime(Number(xValue))} <br> ${tooltipLines.join("<br>")} `;
             }
         },
         minInterval: 0.05,
     };
+
+    function formatTime(seconds: number): string {
+        seconds = Math.abs(seconds); // Ensure seconds is positive
+        if (seconds < 60) {
+            return `${seconds.toFixed(2)} s`;
+        } else if (seconds < 3600) {
+            const minutes = Math.floor(seconds / 60);
+            const remainingSeconds = seconds % 60;
+            return `${minutes} min ${remainingSeconds.toFixed(0)} s`;
+        } else {
+            const hours = Math.floor(seconds / 3600);
+            const remainingMinutes = Math.floor((seconds % 3600) / 60);
+            return `${hours} hr ${remainingMinutes.toFixed(0)} min`;
+        }
+    }
 
     return (
         <Card variant="outlined" sx={{ width: '100%' }}>
