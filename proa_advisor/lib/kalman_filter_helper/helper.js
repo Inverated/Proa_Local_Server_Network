@@ -14,7 +14,16 @@ function soc_to_index(soc, factor = 3) {
     return Math.round(val) + 1;
 }
 
+function diag(values) {
+    return values.map((v, i) => {
+        const row = Array(values.length).fill(0);
+        row[i] = v;
+        return row;
+    });
+}
+
 module.exports = {
     load_battery_constants,
-    soc_to_index
+    soc_to_index,
+    diag
 };

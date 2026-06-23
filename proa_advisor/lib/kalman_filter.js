@@ -1,7 +1,7 @@
 const { Battery2RCEKF } = require("./kalman_filter_helper/filter")
 const { CurrentKCLCorrector } = require("./kalman_filter_helper/kcl_corrector")
 const { adc_to_current, adc_to_voltage } = require("./adc_converter")
-const { load_battery_constants } = require('./kalman_filter_helper/helper');
+const { load_battery_constants, diag } = require('./kalman_filter_helper/helper');
 const { insertMainBatteryState, insertAlternateBatteryState, insertSensorReadings, insertKCLCorrectionState, insertSocSensorData, insertSocSensorDataBulk, insertAllStatesAndReadings, getLastMainBatteryState, getLastAlternateBatteryState, getLastKCLCorrectionState, getRunId, createOrUpdateRunInfo, getRunInfo } = require("../model/db")
 const { getBatteryRC_OCV } = require("../model/db");
 const { write_to_clients } = require('../handler/client_transmission')
@@ -28,10 +28,10 @@ Batt 2: Alternate battery, LiFePO4, 2s1p pack, 48.0V nominal, 50Ah
 
 const ENABLE_EKF_RESTORE = false;
 const USE_NEW_RUN_ID = true;
-const SAMPLE_INTERVAL_BEFORE_WRITE  = 100;
-const SAVE_STATES_TO_DB             = true;
-const SAVE_ADC_READINGS_TO_DB       = true;
-const SAMPLE_INTERVAL_MS            = 1000;       // Only for test data
+const SAMPLE_INTERVAL_BEFORE_WRITE  = 200;
+const SAVE_STATES_TO_DB             = false;
+const SAVE_ADC_READINGS_TO_DB       = false;
+const SAMPLE_INTERVAL_MS            = 5;       // Only for test data
 let sample_count                    = 0;
 let current_run_id                  = null;
 
@@ -78,7 +78,7 @@ let last_kcl_correction_state       = null;
 async function onNewSample(sample, force_log = false, is_test = false) {
     activeUpdates++;
     if (activeUpdates % 20 === 0) {
-        console.log("Background updates:", activeUpdates);
+        console.warn("Background update backup:", activeUpdates);
     }
 
     try {
@@ -179,14 +179,17 @@ async function onNewSample(sample, force_log = false, is_test = false) {
                 const { SoC, R0, R1, C1, C2, Tau1, Tau2, OCV } = rc_values[0];
 
                 avg_kcl_noise.push(sigma_kcl);
-                const noise = { voltage: sigma_v ** 2 }
+                const noise = { 
+                    voltage: sigma_v ** 2,
+                    socProcess: 1e-22,
+                    rcProcess: 1e-22,
+                }
                 const initial = {
                     soc: SoC,
                     vrc1: 0,
                     vrc2: 0,
                 }
-
-                let initialCovariance = undefined;
+                let initialCovariance = diag([1e-8, 1e-8, 1e-8]);
 
                 if (last_main_battery_state) {
                     const last_state_vector = JSON.parse(last_main_battery_state.state_vector);
@@ -223,13 +226,20 @@ async function onNewSample(sample, force_log = false, is_test = false) {
                 const { SoC, R0, R1, C1, C2, Tau1, Tau2, OCV } = rc_values[0];
                 avg_kcl_noise.push(sigma_kcl);
 
-                const noise = { voltage: sigma_v ** 2 }
+                // Battery for alternate used in this case is old and unreliable
+                // need to fine tune the process noise as both voltage and rc are unreliable
+                const noise = { 
+                    socProcess: 1e-12,
+                    rcProcess: 8e-11,
+                    voltage: 1e-5,
+                    //voltage: sigma_v ** 2,
+                }
                 const initial = {
                     soc: SoC,
                     vrc1: 0,
                     vrc2: 0,
                 }
-                let initialCovariance = undefined;
+                let initialCovariance = diag([1e-8, 1e-8, 1e-8]);
 
                 if (last_alternate_battery_state) {
                     const last_state_vector = JSON.parse(last_alternate_battery_state.state_vector);
@@ -363,7 +373,6 @@ async function updateFilter(time_diff_us, mppt_out, load_in, batt1_net, batt2_ne
             SoC_batt_main: null,
             SoC_batt_alternate: null
         };
-        console.log(load_in, mppt_out)
     }
 
     let main_state_vector = null; let main_state_cov = null;

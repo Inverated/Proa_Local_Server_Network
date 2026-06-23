@@ -2,15 +2,7 @@
 
 const { KalmanFilter } = require('kalman-filter');
 const { getBatteryRC_SoC } = require('../../model/db');
-
-
-function diag(values) {
-    return values.map((v, i) => {
-        const row = Array(values.length).fill(0);
-        row[i] = v;
-        return row;
-    });
-}
+const { diag } = require('./helper');
 
 function clamp(x, lo, hi) {
     return Math.max(lo, Math.min(hi, x));

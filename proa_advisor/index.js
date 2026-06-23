@@ -27,8 +27,8 @@ startDB().then(() => {
 }).then((count) => {
     count && console.log(`Inserted ${count} records into AlternateRCMapping.`);
 }).then(() => {
-    //run_test();
-    startSerialReader();
+    run_test();
+    //startSerialReader();
 });
 
 const { add_client, get_clients, remove_client } = require("./handler/client_transmission");
