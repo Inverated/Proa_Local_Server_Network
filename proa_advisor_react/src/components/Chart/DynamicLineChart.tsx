@@ -1,7 +1,8 @@
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, useState } from "react";
 import ReactECharts from "echarts-for-react";
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
+import Box from "@mui/material/Box";
 
 type DynamicLineChartProps = {
     title: string;
@@ -23,6 +24,7 @@ export default function DynamicLineChart({ title, lineNames, xAxis, yAxis }: Dyn
     const { xData } = xAxis;
     const { yData, yUnit, significantDigits = 4, yTitle, yFixed = false } = yAxis;
     const chartRef = useRef(null);
+    const [scaleY, setScaleY] = useState(yFixed);
 
     const series = useMemo(() => {
         return lineNames.map((lineName, index) => ({
@@ -51,7 +53,7 @@ export default function DynamicLineChart({ title, lineNames, xAxis, yAxis }: Dyn
 
         yAxis: {
             type: "value",
-            scale: yFixed ? false : true,
+            scale: scaleY ? false : true,
             axisLabel: {
                 formatter: (value: number) => `${value.toFixed(significantDigits)
                     } ${yUnit}`
@@ -77,11 +79,16 @@ export default function DynamicLineChart({ title, lineNames, xAxis, yAxis }: Dyn
         minInterval: 0.05,
     };
 
-
     return (
         <Card variant="outlined" sx={{ width: '100%' }}>
             <CardContent>
-                <h3>{title}</h3>
+                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                    <h3 style={{ width: '60%', marginLeft: '20%' }}>{title}</h3>
+                    <label style={{ width: '20%' }}>
+                        <input type="checkbox" checked={scaleY} onChange={(e) => setScaleY(e.target.checked)} />
+                        Fix Y-Axis
+                    </label>
+                </Box>
                 <ReactECharts
                     ref={chartRef}
                     option={option}

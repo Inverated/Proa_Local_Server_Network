@@ -26,12 +26,12 @@ Batt 1: Main battery, LiNMC, 2s1p pack, 48.0V nominal, 104Ah
 Batt 2: Alternate battery, LiFePO4, 2s1p pack, 48.0V nominal, 50Ah
 */
 
-const ENABLE_EKF_RESTORE = false;
-const USE_NEW_RUN_ID = true;
-const SAMPLE_INTERVAL_BEFORE_WRITE  = 200;
+const ENABLE_EKF_RESTORE            = true;       // For live run toggle. Test is always disabled
+const USE_NEW_RUN_ID                = true;
+const SAMPLE_INTERVAL_BEFORE_WRITE  = 1000;
 const SAVE_STATES_TO_DB             = false;
 const SAVE_ADC_READINGS_TO_DB       = false;
-const SAMPLE_INTERVAL_MS            = 5;       // Only for test data
+const SAMPLE_INTERVAL_MS            = 0;       // Only for test data
 let sample_count                    = 0;
 let current_run_id                  = null;
 
@@ -115,7 +115,7 @@ async function onNewSample(sample, force_log = false, is_test = false) {
         let batt2_v = adc_to_voltage(a7, 5) * VOLTAGE_DIVIDER_RATIO;
 
         // Temporary fixes
-        batt1_v -= 2.0;
+        //batt1_v -= 2.0;
 
         try {
             [mppt_out, load_in, batt1_net, batt2_net, batt1_v, batt2_v] = detectAndCorrectFlips(mppt_out, load_in, batt1_net, batt2_net, batt1_v, batt2_v);
@@ -419,7 +419,7 @@ async function updateFilter(time_diff_us, mppt_out, load_in, batt1_net, batt2_ne
             );
         }
         await createOrUpdateRunInfo(current_run_id, total_time, total_load_W, total_mppt_W, total_batt1_net_W, total_batt2_net_W);
-        write_to_clients(sensor_readings);
+        write_to_clients("power", sensor_readings);
     }
 
     sample_count++;

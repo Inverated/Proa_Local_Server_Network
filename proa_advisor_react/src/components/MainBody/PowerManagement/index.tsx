@@ -13,31 +13,7 @@ import Box from '@mui/material/Box';
 
 const ARRAY_LENGTH = 500;
 
-type PowerData = {
-    total_time: number;
-    total_load_W: number;
-    total_mppt_W: number;
-    total_batt1_net_W: number;
-    total_batt2_net_W: number;
-    I_batt_main: number;
-    I_batt_alternate: number;
-    I_mppt: number;
-    I_load: number;
-    Corrected_I_batt_main: number;
-    Corrected_I_batt_alternate: number;
-    Corrected_I_mppt: number;
-    Corrected_I_load: number;
-    V_batt_main: number;
-    V_batt_alternate?: number;
-    Corrected_V_batt_main: number;
-    Corrected_V_batt_alternate?: number;
-    OCV_batt_main: number;
-    OCV_batt_alternate?: number;
-    SoC_batt_main: number;
-    SoC_batt_alternate?: number;
-};
-
-export default function PowerManagement() {
+export default function PowerManagement({data}: {data: PowerData | null}) {
     const [xData, setXData] = useState<number[]>([]);
 
     const [voltageReadingMain, setVoltageReadingMain] = useState<number[]>([]);
@@ -102,18 +78,13 @@ export default function PowerManagement() {
             };
             fetchInitialData();
         }
-
-        // Set up EventSource to listen for incoming data
-        const eventSource = new EventSource("http://localhost:4000/data_stream");
-        eventSource.onmessage = (event) => {
-            const data: PowerData = JSON.parse(event.data);
-            populateData(data);
-        };
-
-        return () => {
-            eventSource.close();
-        }
     }, []);
+
+    useEffect(() => {
+        if (data) {
+            populateData(data);
+        }
+    }, [data]);
 
     function populateData(data: PowerData) {
         const slice_length = parseInt(lengthSliderRef.current?.value || displayDataLength.toString());
@@ -147,7 +118,6 @@ export default function PowerManagement() {
     return (
         <div className="power-management">
             <h2>Power Management</h2>
-            <p>Manage your power settings and monitor energy consumption.</p>
             <Box sx={{ width: 300 }}>
                 <p>Number of points: {displayDataLength}</p>
                 <Slider 

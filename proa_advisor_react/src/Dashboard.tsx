@@ -17,7 +17,7 @@ import {
     datePickersCustomizations,
     treeViewCustomizations,
 } from './theme/customizations';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Overview from './components/MainBody/Overview';
 import PowerManagement from './components/MainBody/PowerManagement';
 import StrainManagement from './components/MainBody/StrainManagement';
@@ -32,6 +32,24 @@ const xThemeComponents = {
 
 export default function Dashboard(props: { disableCustomTheme?: boolean }) {
     const [mainContent, setMainContent] = useState(-1);
+    const [powerData, setPowerData] = useState<PowerData | null>(null);
+    const [strainData, setStrainData] = useState<null>(null);  // To be implemented
+    useEffect(() => {
+        const eventSource = new EventSource("http://localhost:4000/data_stream");
+        eventSource.addEventListener("power", (event) => {
+            const data = JSON.parse(event.data);
+            setPowerData(data);
+        });
+
+        eventSource.addEventListener("strain", (event) => {
+            const data = JSON.parse(event.data);
+            setStrainData(data);
+        });
+
+        return () => {
+            eventSource.close();
+        };
+    }, []);
 
     return (
         <AppTheme {...props} themeComponents={xThemeComponents}>
@@ -62,8 +80,8 @@ export default function Dashboard(props: { disableCustomTheme?: boolean }) {
                     >
                         <Header />
                         {mainContent === -1 ? MainGrid() :
-                            mainContent === 0 ? <Overview /> :
-                                mainContent === 1 ? <PowerManagement /> :
+                            mainContent === 0 ? <Overview powerData={powerData} strainData={strainData} /> :
+                                mainContent === 1 ? <PowerManagement data={powerData} /> :
                                     mainContent === 2 ? <StrainManagement /> :
                                         mainContent === 3 ? <ConnectedDevice /> :
                                             <div>Unknown Content</div>
