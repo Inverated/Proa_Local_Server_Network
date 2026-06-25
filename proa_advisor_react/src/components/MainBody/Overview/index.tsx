@@ -96,8 +96,8 @@ export default function Overview({ powerData, strainData }: { powerData: PowerDa
     return (
         <div className="overview">
             <h2>Overview</h2>
-            <Grid container spacing={2} style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
-                <Grid size={{ xs: 12, md: 6 }} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <Grid container spacing={2} columns={12} style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
+                <Grid size={{ xs: 12, md: 6 }}>
                     <Card variant="outlined" sx={{ width: '100%' }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                             <thead>

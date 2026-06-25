@@ -79,6 +79,7 @@ export default function Dashboard(props: { disableCustomTheme?: boolean }) {
                         
                     >
                         <Header />
+                        <Stack sx={{ width: "100%", height: "100%" }}>
                         {mainContent === -1 ? MainGrid() :
                             mainContent === 0 ? <Overview powerData={powerData} strainData={strainData} /> :
                                 mainContent === 1 ? <PowerManagement data={powerData} /> :
@@ -86,6 +87,7 @@ export default function Dashboard(props: { disableCustomTheme?: boolean }) {
                                         mainContent === 3 ? <ConnectedDevice /> :
                                             <div>Unknown Content</div>
                         }
+                        </Stack>
                     </Stack>
                 </Box>
             </Box>

@@ -98,8 +98,8 @@ export default function DynamicLineChart({ title, lineNames, xAxis, yAxis }: Dyn
         <Card variant="outlined" sx={{ width: '100%' }}>
             <CardContent>
                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                    <h3 style={{ width: '60%', marginLeft: '20%' }}>{title}</h3>
-                    <label style={{ width: '20%' }}>
+                    <h3 style={{ marginLeft: '30%', width: "60%" }}>{title}</h3>
+                    <label style={{ width: '30%', textAlign: 'right', fontSize: '0.75rem', color: '#555' }}>
                         <input type="checkbox" checked={scaleY} onChange={(e) => setScaleY(e.target.checked)} />
                         Fix Y-Axis
                     </label>
