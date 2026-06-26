@@ -17,7 +17,7 @@ type IntervalUpdateProps = {
 
 export default function Overview({ powerData, strainData }: { powerData: PowerData | null, strainData: any }) {
     const [powerDataState, setPowerDataState] = useState<PowerData | null>(powerData);
-    const updateIntervalRef = useRef<IntervalUpdateProps>({batt1Percent: 0, batt2Percent: null, prevBatt1Percent: 0, prevBatt2Percent: 0, batt1RemainingTime: 0, batt2RemainingTime: 0});
+    const updateIntervalRef = useRef<IntervalUpdateProps>({ batt1Percent: 0, batt2Percent: null, prevBatt1Percent: 0, prevBatt2Percent: 0, batt1RemainingTime: 0, batt2RemainingTime: 0 });
 
     useEffect(() => {
         if (powerData) {
@@ -59,7 +59,6 @@ export default function Overview({ powerData, strainData }: { powerData: PowerDa
         }
         updateIntervalRef.current.batt1RemainingTime = batt1RemainingTime;
         updateIntervalRef.current.prevBatt1Percent = updateIntervalRef.current.batt1Percent;
-        
         if (updateIntervalRef.current.batt2Percent !== null && updateIntervalRef.current.prevBatt2Percent !== null) {
             let batt2Difference = updateIntervalRef.current.batt2Percent - updateIntervalRef.current.prevBatt2Percent;
             if (Math.abs(batt2Difference) < 1e-5) batt2Difference = 0; // Avoid division by zero
@@ -121,12 +120,12 @@ export default function Overview({ powerData, strainData }: { powerData: PowerDa
                                     <td>{powerDataState?.total_load_W !== undefined ? (powerDataState.total_load_W / 3600).toFixed(2) : "0.00"} Wh</td>
                                 </tr>
                                 <tr>
-                                    <td>Total Battery 1 Net Energy:</td>
+                                    <td>Total Battery 1 Net Output:</td>
                                     <td>{powerDataState?.total_batt1_net_W !== undefined ? (powerDataState.total_batt1_net_W / 3600).toFixed(2) : "0.00"} Wh</td>
                                 </tr>
                                 {powerDataState?.total_batt2_net_W !== undefined && (
                                     <tr>
-                                        <td>Total Battery 2 Net Energy:</td>
+                                        <td>Total Battery 2 Net Output:</td>
                                         <td>{(powerDataState.total_batt2_net_W / 3600).toFixed(2)} Wh</td>
                                     </tr>
                                 )}
@@ -147,8 +146,10 @@ export default function Overview({ powerData, strainData }: { powerData: PowerDa
                                         batteryBody: { strokeColor: '#676767' }, batteryCap: { strokeColor: '#676767' }
                                     }} />
                                 <div style={{ display: 'flex', flexDirection: 'column', textAlign: 'left', marginLeft: '10px' }}>
-                                    <div>Battery 1:</div>
-                                    <div>To {updateIntervalRef.current.batt1RemainingTime > 0 ? "Full" : "Empty"}: {updateIntervalRef.current !== null ? formatTime(updateIntervalRef.current.batt1RemainingTime) : "00:00"}</div>
+                                    <div>Battery 1</div>
+                                    <div>
+                                        To {updateIntervalRef.current.batt1RemainingTime > 0 ? "Full" : "Empty"}: {updateIntervalRef.current !== null ? formatTime(updateIntervalRef.current.batt1RemainingTime) : "00:00"}
+                                    </div>
                                 </div>
                             </div>
                             {updateIntervalRef.current !== null && updateIntervalRef.current.batt2Percent !== null && (

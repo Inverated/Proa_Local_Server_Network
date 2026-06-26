@@ -1,0 +1,14 @@
+{
+  "name": "Proa_Local_Server_Network",
+  "version": "1.0.0",
+  "main": "index.js",
+  "repository": "https://github.com/Inverated/Proa_Local_Server_Network.git",
+  "author": "KQF <120025059+Inverated@users.noreply.github.com>",
+  "license": "MIT",
+  "scripts": {
+    "start": "concurrently \"cd proa_advisor && npm start\" \"cd proa_advisor_react && npm run dev\""
+  },
+  "dependencies": {
+    "concurrently": "^10.0.3"
+  }
+}
