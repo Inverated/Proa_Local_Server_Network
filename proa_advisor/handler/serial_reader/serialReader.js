@@ -1,12 +1,13 @@
 const { SerialPort } = require('serialport');
 const { ReadlineParser } = require('@serialport/parser-readline');
-const { onNewSample } = require("./kalman_filter")
+const { onNewSample } = require("../../lib/kalman_filter")
+const { parsePowerData, consumePowerQueue } = require('./components/power_data_parser');
+
 
 const PACKET_BYTES = 4 + 2 + 4 + (8 * 2) + 2; // Fix at 28 bytes
-const HEADER = 'PWER';
-const HEADER_BUFFER = Buffer.from(HEADER, 'ascii');
-const HEADER_INT = HEADER_BUFFER.readUInt32LE(0);
-const TIME_BETWEEN_SAMPLES_ALERT = 5000;
+const POWER_HEADER = 'PWER';
+const POWER_HEADER_BUFFER = Buffer.from(POWER_HEADER, 'ascii');
+const POWER_HEADER_INT = POWER_HEADER_BUFFER.readUInt32LE(0);
 
 async function findValidPort(baudRate = 2000000, timeoutMs = 2000) {
     // Get the list of ports for the device
@@ -45,7 +46,7 @@ async function findValidPort(baudRate = 2000000, timeoutMs = 2000) {
                 });
                 if (line && line.includes('ADC Ready')) {
                     return { port, path: portInfo.path };
-                } else if (line && line.includes(HEADER)) {
+                } else if (line && line.includes(POWER_HEADER)) {
                     return { port, path: portInfo.path };
                 }
                 console.log(`Attempt ${attempt + 1}/3: No valid response from ${portInfo.path}`);
@@ -67,92 +68,34 @@ let recvBuf = Buffer.alloc(0);
 let lastCounter = -1;
 let offsetCounter = 0;
 
-function additiveChecksum(readings, counter) {
-    let sum = counter & 0xFFFF;
-    for (let i = 0; i < readings.length; i++) {
-        sum ^= (readings[i] << (i + 1));
-    }
-    return sum % 65536;
-}
-
-const queue = [];
-const QUEUE_ALERT = 2000;
+let packetSkipped = 0;
 function processBuffer() {
+    let headerType = null;
     // Scan for a valid packet starting at offset 0, discard bytes until we find one
     while (recvBuf.length >= PACKET_BYTES) {
         // Find header
-        if (recvBuf.readUInt32LE(0) !== HEADER_INT) {
-            recvBuf = recvBuf.subarray(1); // Advance one byte to re-sync
-            continue;
-        }
-
-        // Not enough data yet for a full packet
-        if (recvBuf.length < PACKET_BYTES) break;
-
-        const counter  = recvBuf.readUInt16LE(4);
-        const time_diff_us = recvBuf.readUInt32LE(6);
-        const readings = [];
-        for (let i = 0; i < 8; i++) {
-            readings.push(recvBuf.readUInt16LE(10 + i * 2));
-        }
-        const chksum = recvBuf.readUInt16LE(26);
-
-        if (chksum !== additiveChecksum(readings, counter)) {
-            console.warn(`Checksum fail at counter ${counter}. Re-syncing.`);
-            recvBuf = recvBuf.subarray(1);
-            continue;
-        }
-
-        // Counter realignment on 16-bit wraparound
-        let adjustedCounter = counter;
-        if (lastCounter !== -1) {
-            if (counter < lastCounter && (lastCounter - counter) > 0x7FFF) {
-                offsetCounter = (lastCounter + 1) - counter;
+        headerType = recvBuf.readUInt32LE(0);
+        if (headerType === POWER_HEADER_INT) {
+            if (recvBuf.length < PACKET_BYTES) break;
+            const [result, updatedLastCounter, updatedOffsetCounter] = parsePowerData(recvBuf, PACKET_BYTES, lastCounter, offsetCounter, packetSkipped);
+            if (!result) {
+                packetSkipped++;
+                continue; // Resync to next header
+            } else {
+                recvBuf = result;
+                lastCounter = updatedLastCounter;
+                offsetCounter = updatedOffsetCounter;
+                packetSkipped = 0;
             }
+        } else { // add on for more type
+            recvBuf = recvBuf.subarray(1); // Advance one byte to re-sync
+            packetSkipped++;
+            continue;
         }
-        adjustedCounter = counter + offsetCounter;
-
-        if (lastCounter !== -1 && adjustedCounter !== lastCounter + 1) {
-            console.warn(`Packet loss: counter jumped from ${lastCounter} to ${adjustedCounter}`);
-        }
-
-        lastCounter = adjustedCounter;
-
-        if (time_diff_us > TIME_BETWEEN_SAMPLES_ALERT) {
-            console.warn(`Large time gap: ${time_diff_us} us at counter ${adjustedCounter}`);
-        }
-
-        queue.push({
-            counter: adjustedCounter,
-            time_diff_us: time_diff_us,
-            a0: readings[0],
-            a1: readings[1],
-            a2: readings[2],
-            a3: readings[3],
-            a4: readings[4],
-            a5: readings[5],
-            a6: readings[6],
-            a7: readings[7],
-        });
-
-        recvBuf = recvBuf.subarray(PACKET_BYTES);
     }
-    consumeQueue();
-    if (queue.length > QUEUE_ALERT) {
-        console.warn(`Queue size: ${queue.length}`);
-    }
-}
-
-let consuming = false;
-async function consumeQueue() {
-    if (consuming) return;
-    consuming = true;
-
-    while (queue.length > 0) {
-        const sample = queue.shift();
-        await onNewSample(sample);
-    }
-    consuming = false;
+    if (headerType === POWER_HEADER_INT) {
+        consumePowerQueue();
+    } // add  on for more type
 }
 
 async function startSerialReader() {
@@ -187,4 +130,6 @@ async function startSerialReader() {
     });
 }
 
-module.exports = { startSerialReader };
+module.exports = { 
+    startSerialReader
+};

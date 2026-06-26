@@ -32,7 +32,7 @@ const SAMPLE_INTERVAL_BEFORE_WRITE  = 1000;
 const SAVE_STATES_TO_DB             = false;
 const SAVE_ADC_READINGS_TO_DB       = false;
 const SAMPLE_INTERVAL_MS            = 0;       // Only for test data
-let sample_count                    = 0;
+let ekf_sample_count                    = 0;
 let current_run_id                  = null;
 
 const MIDPOINT                      = 2 ** 15 - 1;      // Midpoint of 16-bit ADC
@@ -340,15 +340,15 @@ async function updateFilter(time_diff_us, mppt_out, load_in, batt1_net, batt2_ne
     
     let kcl_cov = null;
     let kcl_biases = null;
-    if (sample_count % SAMPLE_INTERVAL_BEFORE_WRITE === 0) {
+    if (ekf_sample_count % SAMPLE_INTERVAL_BEFORE_WRITE === 0) {
         kcl_cov = state.covariance;
         kcl_biases = biases;
         console.log("\nInput values - \tMain: " + batt1_v.toFixed(5) + "V, Alt: " + batt2_v.toFixed(5) + "V, \t\tLoad: " + load_in.toFixed(5) + "A, \tCharge: " + mppt_out.toFixed(5) + "A, \tBatt1: " + batt1_net.toFixed(5) + "A, \tBatt2: " + batt2_net.toFixed(5) + "A");
-        console.log(`Counter: ${sample_count}, KCL Corrected Currents: \t\t\tLoad: ${corrected_currents.loadCorrected.toFixed(5)}A, \tCharge: ${corrected_currents.chargeCorrected.toFixed(5)}A, \tBatt1: ${corrected_currents.battery1NetCorrected.toFixed(5)}A, \tBatt2: ${corrected_currents.battery2NetCorrected.toFixed(5)}A`);
+        console.log(`EKF Update: ${ekf_sample_count}, KCL Corrected Currents: \t\t\tLoad: ${corrected_currents.loadCorrected.toFixed(5)}A, \tCharge: ${corrected_currents.chargeCorrected.toFixed(5)}A, \tBatt1: ${corrected_currents.battery1NetCorrected.toFixed(5)}A, \tBatt2: ${corrected_currents.battery2NetCorrected.toFixed(5)}A`);
     }
 
     let sensor_readings = {};
-    if (sample_count % SAMPLE_INTERVAL_BEFORE_WRITE === 0) {
+    if (ekf_sample_count % SAMPLE_INTERVAL_BEFORE_WRITE === 0) {
         sensor_readings = {
             total_time: total_time,
             total_load_W: total_load_W,
@@ -381,11 +381,11 @@ async function updateFilter(time_diff_us, mppt_out, load_in, batt1_net, batt2_ne
             dt: time_diff_us / 1e6,
             voltage: batt1_v,
             netCurrent: corrected_currents.battery1NetCorrected,
-        }, sample_count % SAMPLE_INTERVAL_BEFORE_WRITE === 0);
+        }, ekf_sample_count % SAMPLE_INTERVAL_BEFORE_WRITE === 0);
         main_state_vector = state_vector; main_state_cov = state.covariance;
 
-        if (sample_count % SAMPLE_INTERVAL_BEFORE_WRITE === 0) {
-            console.log(`Counter: ${sample_count}, \tSoC Main: ${(100 * state_vector.soc).toFixed(5)}%, \tCorrected Main: ${voltageEstimate.toFixed(5)}V, Correct OCV: ${rc.OCV.toFixed(5)}V, \tCurrent Main: ${corrected_currents.battery1NetCorrected.toFixed(5)}A, \tVoltage Residual: ${voltageResidual.toFixed(5)}V`);
+        if (ekf_sample_count % SAMPLE_INTERVAL_BEFORE_WRITE === 0) {
+            console.log(`Counter: ${ekf_sample_count}, \tSoC Main: ${(100 * state_vector.soc).toFixed(5)}%, \tCorrected Main: ${voltageEstimate.toFixed(5)}V, Correct OCV: ${rc.OCV.toFixed(5)}V, \tCurrent Main: ${corrected_currents.battery1NetCorrected.toFixed(5)}A, \tVoltage Residual: ${voltageResidual.toFixed(5)}V`);
             sensor_readings.Corrected_V_batt_main = voltageEstimate;
             sensor_readings.OCV_batt_main = rc.OCV;
             sensor_readings.SoC_batt_main = state_vector.soc * 100;
@@ -397,18 +397,18 @@ async function updateFilter(time_diff_us, mppt_out, load_in, batt1_net, batt2_ne
             dt: time_diff_us / 1e6,
             voltage: batt2_v,
             netCurrent: corrected_currents.battery2NetCorrected,
-        }, sample_count % SAMPLE_INTERVAL_BEFORE_WRITE === 0);
+        }, ekf_sample_count % SAMPLE_INTERVAL_BEFORE_WRITE === 0);
 
         alt_state_vector = state_vector; alt_state_cov = state.covariance;
-        if (sample_count % SAMPLE_INTERVAL_BEFORE_WRITE === 0) {
-            console.log(`Counter: ${sample_count}, \tSoC Alternate: ${(100 * state_vector.soc).toFixed(5)}%, \tCorrected Alt: ${voltageEstimate.toFixed(5)}V, Correct OCV: ${rc.OCV.toFixed(5)}V, \tCurrent Alternate: ${corrected_currents.battery2NetCorrected.toFixed(5)}A, \tVoltage Residual: ${voltageResidual.toFixed(5)}V`);
+        if (ekf_sample_count % SAMPLE_INTERVAL_BEFORE_WRITE === 0) {
+            console.log(`Counter: ${ekf_sample_count}, \tSoC Alternate: ${(100 * state_vector.soc).toFixed(5)}%, \tCorrected Alt: ${voltageEstimate.toFixed(5)}V, Correct OCV: ${rc.OCV.toFixed(5)}V, \tCurrent Alternate: ${corrected_currents.battery2NetCorrected.toFixed(5)}A, \tVoltage Residual: ${voltageResidual.toFixed(5)}V`);
             sensor_readings.Corrected_V_batt_alternate = voltageEstimate;
             sensor_readings.OCV_batt_alternate = rc.OCV;
             sensor_readings.SoC_batt_alternate = state_vector.soc * 100;
         }
     }
 
-    if (sample_count % SAMPLE_INTERVAL_BEFORE_WRITE === 0) {
+    if (ekf_sample_count % SAMPLE_INTERVAL_BEFORE_WRITE === 0) {
         if (SAVE_STATES_TO_DB) {
             await insertAllStatesAndReadings(current_run_id, 
                 { main_state_vector, main_state_cov }, 
@@ -421,13 +421,13 @@ async function updateFilter(time_diff_us, mppt_out, load_in, batt1_net, batt2_ne
         write_to_clients("power", sensor_readings);
     }
 
-    sample_count++;
-    if (sample_count % SAMPLE_INTERVAL_BEFORE_WRITE === 0 && SAVE_ADC_READINGS_TO_DB) {
+    ekf_sample_count++;
+    if (ekf_sample_count % SAMPLE_INTERVAL_BEFORE_WRITE === 0 && SAVE_ADC_READINGS_TO_DB) {
         await insertSocSensorDataBulk(data_array);
         data_array = [];
     }
 
-    if (is_test && sample_count % SAMPLE_INTERVAL_BEFORE_WRITE === 0 && SAMPLE_INTERVAL_MS > 0) {
+    if (is_test && ekf_sample_count % SAMPLE_INTERVAL_BEFORE_WRITE === 0 && SAMPLE_INTERVAL_MS > 0) {
         await new Promise(resolve => setTimeout(resolve, SAMPLE_INTERVAL_MS)); // Simulate delay for real-time processing
     }
 }

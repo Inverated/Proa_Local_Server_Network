@@ -13,7 +13,7 @@ const { startDB, insertBatteryState } = require('./model/power_management_models
 const { populateInitalChartData } = require('./model/db');
 const { run_test } = require("./lib/ekf_test")
 const { getCurrentRunId } = require("./lib/kalman_filter");
-const { startSerialReader } = require('./lib/serialReader');
+const { startSerialReader } = require('./handler/serial_reader/serialReader');
 
 const OVERRIDE_DB = true; // Set to true to override existing data in RC mapping tables
 
@@ -27,8 +27,8 @@ startDB().then(() => {
 }).then((count) => {
     count && console.log(`Inserted ${count} records into AlternateRCMapping.`);
 }).then(() => {
-    run_test();
-    //startSerialReader();
+    //run_test();
+    startSerialReader();
 });
 
 const { add_client, get_clients, remove_client } = require("./handler/client_transmission");
