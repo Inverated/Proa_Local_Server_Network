@@ -11,4 +11,4 @@ fs.rmSync(serverPublicPath, { recursive: true, force: true });
 // copy the build folder to the server's public folder
 fs.cpSync(reactBuildPath, serverPublicPath, { recursive: true });
 
-console.log("React build copied to server public folder.");
+console.log("\n//====================================================//\nReact build copied to server public folder.\n//====================================================//\n");

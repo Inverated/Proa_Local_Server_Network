@@ -18,7 +18,6 @@ const { startSerialReader } = require('./handler/serial_reader/serialReader');
 const OVERRIDE_DB = true; // Set to true to override existing data in RC mapping tables
 
 startDB().then(() => {
-    console.log("Database started successfully.");
     return insertBatteryState(battery_type = "LiNMC", tableName = "MainRCMapping", override = OVERRIDE_DB);
 }).then((count) => {
     count && console.log(`Inserted ${count} records into MainRCMapping.`);
@@ -27,6 +26,7 @@ startDB().then(() => {
 }).then((count) => {
     count && console.log(`Inserted ${count} records into AlternateRCMapping.`);
 }).then(() => {
+    console.log("\n//====================================================//\nDatabase setup complete.\n//====================================================//\n");
     //run_test();
     startSerialReader();
 });

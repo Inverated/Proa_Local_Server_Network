@@ -101,6 +101,7 @@ function processBuffer() {
 }
 
 async function startSerialReader() {
+    console.log('Starting serial reader...');
     let result;
     try {
         result = await findValidPort();
