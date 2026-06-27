@@ -2,14 +2,14 @@ import Grid from '@mui/material/Grid';
 import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
-import Copyright from '../../internals/components/Copyright';
-import ChartUserByCountry from './ChartUserByCountry';
-import CustomizedTreeView from './CustomizedTreeView';
-import CustomizedDataGrid from './CustomizedDataGrid';
-import HighlightedCard from './HighlightedCard';
-import PageViewsBarChart from './PageViewsBarChart';
-import SessionsChart from './SessionsChart';
-import StatCard, { StatCardProps } from './StatCard';
+import Copyright from '../../../internals/components/Copyright';
+import ChartUserByCountry from './components/ChartUserByCountry';
+import CustomizedTreeView from './components/CustomizedTreeView';
+import CustomizedDataGrid from './components/CustomizedDataGrid';
+import HighlightedCard from './components/HighlightedCard';
+import PageViewsBarChart from './components/PageViewsBarChart';
+import SessionsChart from './components/SessionsChart';
+import StatCard, { StatCardProps } from './components/StatCard';
 
 const data: StatCardProps[] = [
   {
