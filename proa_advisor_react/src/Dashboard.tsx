@@ -21,7 +21,6 @@ import { useEffect, useState } from 'react';
 import Overview from './components/MainBody/Overview';
 import PowerManagement from './components/MainBody/PowerManagement';
 import StrainManagement from './components/MainBody/StrainManagement';
-import ConnectedDevice from './components/MainBody/ConnectedDevice';
 
 const xThemeComponents = {
     ...chartsCustomizations,
@@ -31,7 +30,8 @@ const xThemeComponents = {
 };
 
 export default function Dashboard(props: { disableCustomTheme?: boolean }) {
-    const [mainContent, setMainContent] = useState(-1);
+    //const [mainContent, setMainContent] = useState(-1);       // Use this for referencing the template
+    const [mainContent, setMainContent] = useState(0);
     const [powerData, setPowerData] = useState<PowerData | null>(null);
     const [strainData, setStrainData] = useState<null>(null);  // To be implemented
     useEffect(() => {
@@ -84,7 +84,6 @@ export default function Dashboard(props: { disableCustomTheme?: boolean }) {
                             mainContent === 0 ? <Overview powerData={powerData} strainData={strainData} /> :
                                 mainContent === 1 ? <PowerManagement data={powerData} /> :
                                     mainContent === 2 ? <StrainManagement /> :
-                                        mainContent === 3 ? <ConnectedDevice /> :
                                             <div>Unknown Content</div>
                         }
                         </Stack>

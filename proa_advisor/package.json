@@ -8,7 +8,10 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "nodemon index.js"
+    "start": "nodemon index.js",
+    "build:react": "cd ../proa_advisor_react && yarn && yarn run build",
+    "copy:react": "node scripts/copyReactBuild.js",
+    "start:all": "yarn && yarn run build:react && yarn run copy:react && yarn run start"
   },
   "dependencies": {
     "better-sqlite3": "^12.10.0",

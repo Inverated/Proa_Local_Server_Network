@@ -1,5 +1,5 @@
 const express = require("express");
-
+const path = require("path");
 const app = express();
 const port = 4000;
 const cors = require("cors");
@@ -7,7 +7,7 @@ const cors = require("cors");
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
+app.use(express.static(path.join(__dirname, 'public')));
 
 const { startDB, insertBatteryState } = require('./model/power_management_models');
 const { populateInitalChartData } = require('./model/db');
@@ -60,7 +60,7 @@ app.get("/initial_data", async (req, res) => {
 });
 
 app.get("/", (req, res) => {
-    res.send("Hello World!");
+    res.sendFile(__dirname + "/public/index.html");
 });
 
 app.listen(port, () => {

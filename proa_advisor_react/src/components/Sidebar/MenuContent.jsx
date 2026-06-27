@@ -17,7 +17,6 @@ const mainListItems = [
     { text: 'Overview', icon: <HomeRoundedIcon /> },
     { text: 'Power Management', icon: <AnalyticsRoundedIcon /> },
     { text: 'Strain Gauge', icon: <PeopleRoundedIcon /> },
-    { text: 'Connected Devices', icon: <AssignmentRoundedIcon /> },
 ];
 
 const secondaryListItems = [

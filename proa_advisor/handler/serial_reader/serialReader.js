@@ -2,8 +2,7 @@ const { SerialPort } = require('serialport');
 const { ReadlineParser } = require('@serialport/parser-readline');
 const { onNewSample } = require("../../lib/kalman_filter")
 const { parsePowerData, consumePowerQueue } = require('./components/power_data_parser');
-
-
+ 
 const PACKET_BYTES = 4 + 2 + 4 + (8 * 2) + 2; // Fix at 28 bytes
 const POWER_HEADER = 'PWER';
 const POWER_HEADER_BUFFER = Buffer.from(POWER_HEADER, 'ascii');
@@ -25,10 +24,13 @@ async function findValidPort(baudRate = 2000000, timeoutMs = 2000) {
         // or if length of line == packet bytes, return that port
         try {
             const port = new SerialPort({ path: portInfo.path, baudRate, autoOpen: false });
-            await port.open();
+            port.on('error', (err) => {
+                console.error(`SerialPort error on ${portInfo.path}:`, err.message);
+            });
+            port.open();
             const parser = port.pipe(new ReadlineParser({ delimiter: '\n' }));
 
-            for (let attempt = 0; attempt <= 2; attempt++) {
+            for (let attempt = 0; attempt < 3; attempt++) {
                 port.write('START\n');
                 await port.drain();
 
@@ -99,7 +101,14 @@ function processBuffer() {
 }
 
 async function startSerialReader() {
-    const result = await findValidPort();
+    let result;
+    try {
+        result = await findValidPort();
+    } catch (err) {
+        console.error(`Error finding valid port: ${err.message}`);
+        setTimeout(startSerialReader, 3000);
+        return;
+    }
 
     if (!result) {
         console.log('Retrying in 3 seconds...');
