@@ -14,15 +14,17 @@ const StyledBreadcrumbs = styled(Breadcrumbs)(({ theme }) => ({
   },
 }));
 
-export default function NavbarBreadcrumbs() {
+export default function NavbarBreadcrumbs({ currentTab }: { currentTab?: string }) {
   return (
     <StyledBreadcrumbs
       aria-label="breadcrumb"
       separator={<NavigateNextRoundedIcon fontSize="small" />}
     >
-      <Typography variant="body1">Dashboard</Typography>
       <Typography variant="body1" sx={{ color: 'text.primary', fontWeight: 600 }}>
-        Home
+        Dashboard
+      </Typography>
+      <Typography variant="body1" sx={{ color: 'text.primary', fontWeight: 600 }}>
+        {currentTab || 'Home'}
       </Typography>
     </StyledBreadcrumbs>
   );

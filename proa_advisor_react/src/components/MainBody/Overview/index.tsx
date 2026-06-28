@@ -94,7 +94,6 @@ export default function Overview({ powerData, strainData }: { powerData: PowerDa
     // battery guage for b1 and b2 + remaining time left below each in a card
     return (
         <div className="overview">
-            <h2>Overview</h2>
             <Grid container spacing={2} columns={12} style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
                 <Grid size={{ xs: 12, md: 6 }}>
                     <Card variant="outlined" sx={{ width: '100%' }}>

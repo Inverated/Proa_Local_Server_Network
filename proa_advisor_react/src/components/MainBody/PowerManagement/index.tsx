@@ -117,7 +117,6 @@ export default function PowerManagement({data}: {data: PowerData | null}) {
 
     return (
         <div className="power-management">
-            <h2>Power Management</h2>
             <Box sx={{ width: 300 }}>
                 <p>Number of points: {displayDataLength}</p>
                 <Slider 

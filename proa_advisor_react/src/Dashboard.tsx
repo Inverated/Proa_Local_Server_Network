@@ -76,16 +76,21 @@ export default function Dashboard(props: { disableCustomTheme?: boolean }) {
                             pb: 5,
                             mt: { xs: 8, md: 0 },
                         }}
-                        
+
                     >
-                        <Header />
+                        <Header currentTab=
+                            {mainContent === -1 ? 'Template Layout' :
+                                mainContent === 0 ? 'Overview' :
+                                    mainContent === 1 ? 'Power Management' :
+                                        mainContent === 2 ? 'Strain Management' :
+                                            'Unknown'} />
                         <Stack sx={{ width: "100%", height: "100%" }}>
-                        {mainContent === -1 ? MainGrid() :
-                            mainContent === 0 ? <Overview powerData={powerData} strainData={strainData} /> :
-                                mainContent === 1 ? <PowerManagement data={powerData} /> :
-                                    mainContent === 2 ? <StrainManagement /> :
+                            {mainContent === -1 ? MainGrid() :
+                                mainContent === 0 ? <Overview powerData={powerData} strainData={strainData} /> :
+                                    mainContent === 1 ? <PowerManagement data={powerData} /> :
+                                        mainContent === 2 ? <StrainManagement /> :
                                             <div>Unknown Content</div>
-                        }
+                            }
                         </Stack>
                     </Stack>
                 </Box>
