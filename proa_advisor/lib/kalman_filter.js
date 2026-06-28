@@ -27,12 +27,12 @@ Batt 2: Alternate battery, LiFePO4, 2s1p pack, 48.0V nominal, 50Ah
 */
 
 const ENABLE_EKF_RESTORE            = true;       // For live run toggle. Test is always disabled
-const USE_NEW_RUN_ID                = true;
+const USE_NEW_RUN_ID                = false;
 const SAMPLE_INTERVAL_BEFORE_WRITE  = 1000;
-const SAVE_STATES_TO_DB             = false;
-const SAVE_ADC_READINGS_TO_DB       = false;
+const SAVE_STATES_TO_DB             = true;
+const SAVE_ADC_READINGS_TO_DB       = true;
 const SAMPLE_INTERVAL_MS            = 0;       // Only for test data
-let ekf_sample_count                    = 0;
+let ekf_sample_count                = 0;
 let current_run_id                  = null;
 
 const MIDPOINT                      = 2 ** 15 - 1;      // Midpoint of 16-bit ADC

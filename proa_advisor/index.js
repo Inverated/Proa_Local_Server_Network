@@ -27,8 +27,8 @@ startDB().then(() => {
     count && console.log(`Inserted ${count} records into AlternateRCMapping.`);
 }).then(() => {
     console.log("\n//====================================================//\nDatabase setup complete.\n//====================================================//\n");
-    run_test();
-    //startSerialReader();
+    //run_test();
+    startSerialReader();
 });
 
 const { add_client, get_clients, remove_client } = require("./handler/client_transmission");
@@ -63,6 +63,6 @@ app.get("/", (req, res) => {
     res.sendFile(__dirname + "/public/index.html");
 });
 
-app.listen(port, () => {
-    console.log(`Listening at http://localhost:${port}`);
+app.listen(port, "0.0.0.0", () => {
+    console.log(`Listening on port ${port}`);
 });
