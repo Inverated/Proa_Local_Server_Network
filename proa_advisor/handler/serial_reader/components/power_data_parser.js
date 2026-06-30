@@ -58,7 +58,7 @@ function parsePowerData(recvBuf, packet_bytes, lastCounter, offsetCounter, packe
         a6: readings[6],
         a7: readings[7],
     });
-
+    
     return [recvBuf.subarray(packet_bytes), lastCounter, offsetCounter];
 }
 

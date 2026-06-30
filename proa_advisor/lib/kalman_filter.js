@@ -28,7 +28,6 @@ Batt 2: Alternate battery, LiFePO4, 2s1p pack, 48.0V nominal, 50Ah
 
 const ENABLE_EKF_RESTORE            = true;       // For live run toggle. Test is always disabled
 const USE_NEW_RUN_ID                = false;
-const SAMPLE_INTERVAL_BEFORE_WRITE  = 1000;
 const SAVE_STATES_TO_DB             = true;
 const SAVE_ADC_READINGS_TO_DB       = true;
 const SAMPLE_INTERVAL_MS            = 0;       // Only for test data
@@ -74,6 +73,8 @@ let batt1_v_window          = [];   let batt2_v_window      = [];
 let last_main_battery_state         = null;
 let last_alternate_battery_state    = null;
 let last_kcl_correction_state       = null;
+
+const SAMPLE_INTERVAL_BEFORE_WRITE  = 1000 / MEDIAN_WINDOW_SIZE;
 
 async function onNewSample(sample, force_log = false, is_test = false) {
     activeUpdates++;
@@ -124,10 +125,10 @@ async function onNewSample(sample, force_log = false, is_test = false) {
             return; // Skip this sample due to uncorrectable KCL violation
         }
 
-        mppt_out = mppt_out < KCL_CURRENT_THRESHOLD ? 0 : mppt_out;
+        /* mppt_out = mppt_out < KCL_CURRENT_THRESHOLD ? 0 : mppt_out;
         load_in = load_in < KCL_CURRENT_THRESHOLD ? 0 : load_in;
         batt1_net = Math.abs(batt1_net) < KCL_CURRENT_THRESHOLD ? 0 : batt1_net;
-        batt2_net = Math.abs(batt2_net) < KCL_CURRENT_THRESHOLD ? 0 : batt2_net;
+        batt2_net = Math.abs(batt2_net) < KCL_CURRENT_THRESHOLD ? 0 : batt2_net */;
 
         // Calculate total power for display use only (Not fully accurate)
         let mppt_power = 0;

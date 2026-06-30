@@ -65,4 +65,5 @@ app.get("/", (req, res) => {
 
 app.listen(port, "0.0.0.0", () => {
     console.log(`Listening on port ${port}`);
+    console.log(`Access the application at http://localhost:${port}`);
 });

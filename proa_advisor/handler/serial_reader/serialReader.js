@@ -82,7 +82,8 @@ function processBuffer() {
             const [result, updatedLastCounter, updatedOffsetCounter] = parsePowerData(recvBuf, PACKET_BYTES, lastCounter, offsetCounter, packetSkipped);
             if (!result) {
                 packetSkipped++;
-                continue; // Resync to next header
+                recvBuf = recvBuf.subarray(1); // Advance one byte to re-sync
+                    continue; // Resync to next header
             } else {
                 recvBuf = result;
                 lastCounter = updatedLastCounter;
@@ -95,6 +96,7 @@ function processBuffer() {
             continue;
         }
     }
+    console.log(`Buffer length: ${recvBuf.length}, Last Counter: ${lastCounter}, Offset Counter: ${offsetCounter}, Packets Skipped: ${packetSkipped}`);
     if (headerType === POWER_HEADER_INT) {
         consumePowerQueue();
     } // add  on for more type
