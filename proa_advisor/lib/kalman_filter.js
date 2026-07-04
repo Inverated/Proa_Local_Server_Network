@@ -27,7 +27,7 @@ Batt 2: Alternate battery, LiFePO4, 2s1p pack, 48.0V nominal, 50Ah
 */
 
 const ENABLE_EKF_RESTORE            = true;       // For live run toggle. Test is always disabled
-const USE_NEW_RUN_ID                = false;
+const USE_NEW_RUN_ID                = true;
 const SAVE_STATES_TO_DB             = true;
 const SAVE_ADC_READINGS_TO_DB       = true;
 const SAMPLE_INTERVAL_MS            = 0;       // Only for test data
@@ -181,7 +181,7 @@ async function onNewSample(sample, force_log = false, is_test = false) {
 
                 avg_kcl_noise.push(sigma_kcl);
                 const noise = { 
-                    voltage: sigma_v ** 2,
+                    voltage: sigma_v,
                     socProcess: 1e-22,
                     rcProcess: 1e-22,
                 }

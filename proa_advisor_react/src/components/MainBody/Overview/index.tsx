@@ -16,12 +16,12 @@ type IntervalUpdateProps = {
 }
 
 export default function Overview({ powerData, strainData }: { powerData: PowerData | null, strainData: any }) {
-    const [powerDataState, setPowerDataState] = useState<PowerData | null>(powerData);
+    const powerDataRef = useRef<PowerData | null>(powerData);
     const updateIntervalRef = useRef<IntervalUpdateProps>({ batt1Percent: 0, batt2Percent: null, prevBatt1Percent: 0, prevBatt2Percent: 0, batt1RemainingTime: 0, batt2RemainingTime: 0 });
 
     useEffect(() => {
         if (powerData) {
-            setPowerDataState(powerData);
+            powerDataRef.current = powerData;
             updateIntervalRef.current.batt1Percent = powerData.SoC_batt_main;
             updateIntervalRef.current.batt2Percent = powerData.SoC_batt_alternate !== undefined ? powerData.SoC_batt_alternate : null;
         }
@@ -58,9 +58,7 @@ export default function Overview({ powerData, strainData }: { powerData: PowerDa
         let batt1Difference = updateIntervalRef.current.batt1Percent - updateIntervalRef.current.prevBatt1Percent;
         if (Math.abs(batt1Difference) < 1e-5) batt1Difference = 0; // Avoid division by zero
         let batt1RemainingTime = batt1Difference !== 0 ? (CALCULATE_INTERVAL / 1000) * (batt1Difference < 0 ? updateIntervalRef.current.batt1Percent : (100 - updateIntervalRef.current.batt1Percent)) / batt1Difference : 9999999;
-        console.log(`Battery 1 Difference: ${batt1Difference}, Remaining Time: ${batt1RemainingTime}`);
-        console.log(powerDataState?.I_batt_main)
-        if (powerDataState?.I_batt_main && powerDataState.I_batt_main < 0.1) {
+        if (powerDataRef.current && Math.abs(powerDataRef.current.I_batt_main) < 0.1) {
             // If the battery is not discharging, set remaining time to a large number
             // From residual value of corrected ocv recovering after a circuit open
             batt1RemainingTime = 9999999; // If the battery is not discharging, set remaining time to a large number
@@ -71,7 +69,7 @@ export default function Overview({ powerData, strainData }: { powerData: PowerDa
             let batt2Difference = updateIntervalRef.current.batt2Percent - updateIntervalRef.current.prevBatt2Percent;
             if (Math.abs(batt2Difference) < 1e-5) batt2Difference = 0; // Avoid division by zero
             let batt2RemainingTime = batt2Difference !== 0 ? (CALCULATE_INTERVAL / 1000) * (batt2Difference < 0 ? updateIntervalRef.current.batt2Percent : (100 - updateIntervalRef.current.batt2Percent)) / batt2Difference : 9999999;
-            if (powerDataState?.I_batt_alternate && powerDataState.I_batt_alternate < 0.1) {
+            if (powerDataRef.current && Math.abs(powerDataRef.current.I_batt_alternate) < 0.1) {
                 batt2RemainingTime = 9999999;
             }
             updateIntervalRef.current.batt2RemainingTime = batt2RemainingTime;
@@ -81,9 +79,9 @@ export default function Overview({ powerData, strainData }: { powerData: PowerDa
 
     function formatTime(seconds: number): string {
         seconds = Math.abs(seconds); // Ensure seconds is positive
-        /* if (seconds > MAX_TIME_BEFORE_HIDE) {
-            return "-";
-        } */
+        if (seconds == 0 || seconds > MAX_TIME_BEFORE_HIDE) {
+            return "Loading...";
+        }
         if (seconds < 60) {
             return `${seconds.toFixed(2)} s`;
         } else if (seconds < 3600) {
@@ -116,24 +114,24 @@ export default function Overview({ powerData, strainData }: { powerData: PowerDa
                             <tbody>
                                 <tr>
                                     <td>Total Time Elapsed:</td>
-                                    <td><div>{formatTime(powerDataState?.total_time || 0)}</div></td>
+                                    <td><div>{formatTime(powerDataRef.current?.total_time || 0)}</div></td>
                                 </tr>
                                 <tr>
                                     <td>Total MPPT Energy:</td>
-                                    <td>{powerDataState?.total_mppt_W !== undefined ? (powerDataState.total_mppt_W / 3600).toFixed(2) : "0.00"} Wh</td>
+                                    <td>{powerDataRef.current?.total_mppt_W !== undefined ? (powerDataRef.current.total_mppt_W / 3600).toFixed(2) : "0.00"} Wh</td>
                                 </tr>
                                 <tr>
                                     <td>Total Load Energy:</td>
-                                    <td>{powerDataState?.total_load_W !== undefined ? (powerDataState.total_load_W / 3600).toFixed(2) : "0.00"} Wh</td>
+                                    <td>{powerDataRef.current?.total_load_W !== undefined ? (powerDataRef.current.total_load_W / 3600).toFixed(2) : "0.00"} Wh</td>
                                 </tr>
                                 <tr>
                                     <td>Total Battery 1 Net Output:</td>
-                                    <td>{powerDataState?.total_batt1_net_W !== undefined ? (powerDataState.total_batt1_net_W / 3600).toFixed(2) : "0.00"} Wh</td>
+                                    <td>{powerDataRef.current?.total_batt1_net_W !== undefined ? (powerDataRef.current.total_batt1_net_W / 3600).toFixed(2) : "0.00"} Wh</td>
                                 </tr>
-                                {powerDataState?.total_batt2_net_W !== undefined && (
+                                {powerDataRef.current?.total_batt2_net_W !== undefined && (
                                     <tr>
                                         <td>Total Battery 2 Net Output:</td>
-                                        <td>{(powerDataState.total_batt2_net_W / 3600).toFixed(2)} Wh</td>
+                                        <td>{(powerDataRef.current.total_batt2_net_W / 3600).toFixed(2)} Wh</td>
                                     </tr>
                                 )}
                             </tbody>
@@ -155,7 +153,7 @@ export default function Overview({ powerData, strainData }: { powerData: PowerDa
                                 <div style={{ display: 'flex', flexDirection: 'column', textAlign: 'left', marginLeft: '10px' }}>
                                     <div>Battery 1</div>
                                     <div>
-                                        To {updateIntervalRef.current.batt1RemainingTime > 0 ? "Full" : "Empty"}: {updateIntervalRef.current !== null ? formatTime(updateIntervalRef.current.batt1RemainingTime) : "00:00"}
+                                        To {updateIntervalRef.current?.batt1RemainingTime > 0 ? "Full" : "Empty"}: {formatTime(updateIntervalRef.current?.batt1RemainingTime)}
                                     </div>
                                 </div>
                             </div>
@@ -170,7 +168,7 @@ export default function Overview({ powerData, strainData }: { powerData: PowerDa
                                         }} />
                                     <div style={{ display: 'flex', flexDirection: 'column', textAlign: 'left', marginLeft: '10px' }}>
                                         <div>Battery 2:</div>
-                                        <div>To {updateIntervalRef.current.batt2RemainingTime > 0 ? "Full" : "Empty"}: {updateIntervalRef.current !== null ? formatTime(updateIntervalRef.current.batt2RemainingTime) : "00:00"}</div>
+                                        <div>To {updateIntervalRef.current?.batt2RemainingTime > 0 ? "Full" : "Empty"}: {formatTime(updateIntervalRef.current?.batt2RemainingTime)}</div>
                                     </div>
                                 </div>
                             )}
