@@ -146,8 +146,8 @@ export default function Overview({ powerData, strainData }: { powerData: PowerDa
                                 <BatteryGauge size={100} orientation="horizontal" aspectRatio={0.56} animated={false} value={updateIntervalRef.current !== null ? updateIntervalRef.current.batt1Percent : 0}
                                     formatValue={(v) => updateIntervalRef.current !== null ? updateIntervalRef.current.batt1Percent.toFixed(2) : "0.000"}
                                     customization={{
-                                        readingText: { lightContrastColor: '#676767' },
-                                        batteryMeter: { lowBatteryValue: 25, lowBatteryFill: 'red', noOfCells: 10 },
+                                        readingText: { lightContrastColor: '#676767', darkContrastColor: '#e7e7e7' },
+                                        batteryMeter: { lowBatteryValue: 25, lowBatteryFill: 'red', noOfCells: 1 },
                                         batteryBody: { strokeColor: '#676767' }, batteryCap: { strokeColor: '#676767' }
                                     }} />
                                 <div style={{ display: 'flex', flexDirection: 'column', textAlign: 'left', marginLeft: '10px' }}>
@@ -162,12 +162,12 @@ export default function Overview({ powerData, strainData }: { powerData: PowerDa
                                     <BatteryGauge size={100} orientation="horizontal" aspectRatio={0.56} animated={false} value={updateIntervalRef.current !== null ? updateIntervalRef.current.batt2Percent : 0}
                                         formatValue={(v) => updateIntervalRef.current !== null && updateIntervalRef.current.batt2Percent !== null ? updateIntervalRef.current.batt2Percent.toFixed(2) : "0.000"}
                                         customization={{
-                                            readingText: { lightContrastColor: '#676767' },
-                                            batteryMeter: { lowBatteryValue: 25, lowBatteryFill: 'red', noOfCells: 10 },
+                                            readingText: { lightContrastColor: '#676767', darkContrastColor: '#e7e7e7' },
+                                            batteryMeter: { lowBatteryValue: 25, lowBatteryFill: 'red', noOfCells: 1 },
                                             batteryBody: { strokeColor: '#676767' }, batteryCap: { strokeColor: '#676767' }
                                         }} />
                                     <div style={{ display: 'flex', flexDirection: 'column', textAlign: 'left', marginLeft: '10px' }}>
-                                        <div>Battery 2:</div>
+                                        <div>Battery 2</div>
                                         <div>To {updateIntervalRef.current?.batt2RemainingTime > 0 ? "Full" : "Empty"}: {formatTime(updateIntervalRef.current?.batt2RemainingTime)}</div>
                                     </div>
                                 </div>

@@ -53,7 +53,8 @@ export default function PowerManagement({data}: {data: PowerData | null}) {
                     const initialData: PowerData[] = await response.json();
                     if (initialData && initialData.length > 0) {
                         initialData.forEach((data) => {
-                            setXData((prevXData) => [...prevXData, data.total_time].slice(-defaultLength));
+                            // TODO: Fix the data order reversed on recovery
+                            setXData((prevXData) => [data.total_time, ...prevXData].slice(-defaultLength));
                             data.V_batt_main != undefined && setVoltageReadingMain((prev) => [...prev, data.V_batt_main as number].slice(-defaultLength));
                             data.Corrected_V_batt_main != undefined && setCorrectedVoltageMain((prev) => [...prev, data.Corrected_V_batt_main as number].slice(-defaultLength));
                             data.OCV_batt_main != undefined && setOCVMain((prev) => [...prev, data.OCV_batt_main as number].slice(-defaultLength));
