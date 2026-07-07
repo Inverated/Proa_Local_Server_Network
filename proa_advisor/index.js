@@ -41,10 +41,12 @@ app.get("/data_stream", (req, res) => {
     res.flushHeaders?.();
 
     add_client(res);
+    console.log(`Client connected. Total clients: ${get_clients().size}`);
     res.write(": connected\n\n");
 
     req.on("close", () => {
         remove_client(res);
+        console.log(`Client disconnected. Total clients: ${get_clients().size}`);
     });
 })
 
