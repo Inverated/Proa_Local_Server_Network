@@ -35,7 +35,7 @@ export default function Dashboard(props: { disableCustomTheme?: boolean }) {
     const [powerData, setPowerData] = useState<PowerData | null>(null);
     const [strainData, setStrainData] = useState<null>(null);  // To be implemented
     useEffect(() => {
-        const eventSource = new EventSource("http://localhost:4000/data_stream");
+        const eventSource = new EventSource("/data_stream");
         eventSource.addEventListener("power", (event) => {
             const data = JSON.parse(event.data);
             setPowerData(data);

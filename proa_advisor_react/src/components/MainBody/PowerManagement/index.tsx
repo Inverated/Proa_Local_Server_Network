@@ -49,7 +49,7 @@ export default function PowerManagement({data}: {data: PowerData | null}) {
         if (xData.length === 0) {
             const fetchInitialData = async () => {
                 try {
-                    const response = await fetch("http://localhost:4000/initial_data");
+                    const response = await fetch("/initial_data");
                     const initialData: PowerData[] = await response.json();
                     if (initialData && initialData.length > 0) {
                         initialData.forEach((data) => {
