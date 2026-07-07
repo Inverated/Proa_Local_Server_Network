@@ -54,3 +54,27 @@ sudo systemctl disable apt-daily.service
 
 Still takes around 20s to boot up
 
+## Download packages
+```
+sudo apt full-upgrade
+sudo apt install git nodejs npm curl -y
+sudo npm install yarn -g
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+source ~/.bashrc
+nvm install --lts
+nvm use node
+```
+
+Optional
+```
+sudo apt install tree vim -y
+```
+
+## Setting up git repo
+
+```
+git clone https://github.com/Inverated/Proa_Local_Server_Network advisor
+cd advisor/
+yarn install
+yarn start:all
+```

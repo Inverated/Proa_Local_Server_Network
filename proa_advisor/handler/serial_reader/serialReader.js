@@ -96,7 +96,7 @@ function processBuffer() {
             continue;
         }
     }
-    console.log(`Buffer length: ${recvBuf.length}, Last Counter: ${lastCounter}, Offset Counter: ${offsetCounter}, Packets Skipped: ${packetSkipped}`);
+    //console.log(`Buffer length: ${recvBuf.length}, Last Counter: ${lastCounter}, Offset Counter: ${offsetCounter}, Packets Skipped: ${packetSkipped}`);
     if (headerType === POWER_HEADER_INT) {
         consumePowerQueue();
     } // add  on for more type
