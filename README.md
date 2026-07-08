@@ -57,7 +57,7 @@ Still takes around 20s to boot up
 ## Download packages
 ```
 sudo apt full-upgrade
-sudo apt install git nodejs npm curl -y
+sudo apt install git nodejs npm curl hostapd dnsmasq -y
 sudo npm install yarn -g
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
 source ~/.bashrc
