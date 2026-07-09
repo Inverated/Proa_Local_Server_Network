@@ -57,7 +57,7 @@ Still takes around 20s to boot up
 ## Download packages
 ```
 sudo apt full-upgrade
-sudo apt install git nodejs npm curl hostapd dnsmasq iptables -y
+sudo apt install git nodejs npm curl hostapd dnsmasq dhcpcd5 iptables -y
 sudo npm install yarn -g
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
 source ~/.bashrc
@@ -65,20 +65,18 @@ nvm install --lts
 nvm use node
 ```
 
-Optional
-```
-sudo apt install tree vim -y
-```
-
 ## Setting up git repo
 
 ```
+mkdir apps
+cd apps
 git clone https://github.com/Inverated/Proa_Local_Server_Network advisor
 cd advisor/
 yarn install
 yarn start:all
 ```
 
+Force stop once initial build completes
 
 ## Setting up network
 
@@ -118,7 +116,7 @@ sudo systemctl restart dhcpcd
 interface=wlan0
 driver=nl80211
 
-ssid=ProaII
+ssid=Proa_II
 
 hw_mode=g
 channel=6
@@ -163,18 +161,15 @@ sudo systemctl unmask hostapd
 sudo systemctl enable hostapd
 sudo systemctl enable dnsmasq
 
+sudo systemctl restart wpa_supplicant
+sudo systemctl restart NetworkManager
 sudo systemctl start hostapd
 sudo systemctl start dnsmasq
+
 ```
 
 `iw dev wlan0 info`
-Check if type for wlan0 is AP
-
-
-Redirect root port to 4000
-```
-sudo iptables -t nat -A PREROUTING -i wlan0 -p tcp --dport 80 -j REDIRECT --to-port 4000
-```
+Check if type for wlan0 is AP. If not, sudo reboot and check this again
 
 ## auto connect / redirect anywhere.com
 `sudo nano /etc/systemd/system/solarproa-redirect-connection.service`
@@ -215,8 +210,8 @@ Wants=network-online.target
 [Service]
 Type=simple
 User=admin
-WorkingDirectory=/home/admin/apps/advisor/
-ExecStart=/usr/local/bin/yarn start:all
+WorkingDirectory=/home/admin/apps/advisor/proa_advisor
+ExecStart=/usr/admin/local/bin/yarn start
 Restart=always
 RestartSec=5
 Environment=NODE_ENV=production
@@ -229,9 +224,30 @@ WantedBy=multi-user.target
 sudo systemctl daemon-reload
 sudo systemctl enable solarproa-advisor
 sudo systemctl start solarproa-advisor
+journalctl -u solarproa-advisor -f
+
 ```
 
 Check log
 ```
 journalctl -u solarproa-advisor -f
 ```
+
+
+chip can only be either an access point or a receiver. either switch back to receiving or use external wifi.
+Check new wifi receiver name (should be wlan1)
+```
+sudo nmcli device wifi connect "YourSSID" password "YourPassword" ifname wlan1
+```
+
+
+## update & restart
+Use the latest. Local should not be updated
+```
+cd apps/advisor
+git reset --hard
+git pull
+yarn rebuild
+sudo reboot
+```
+

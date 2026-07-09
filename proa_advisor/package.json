@@ -11,6 +11,7 @@
     "start": "nodemon index.js",
     "build:react": "cd ../proa_advisor_react && yarn && yarn run build",
     "copy:react": "node scripts/copyReactBuild.js",
+    "rebuild": "yarn && yarn run build:react && yarn run copy:react",
     "start:all": "yarn && yarn run build:react && yarn run copy:react && yarn run start"
   },
   "dependencies": {

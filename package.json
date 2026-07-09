@@ -8,6 +8,7 @@
   "scripts": {
     "install:yarn": "npm install -g yarn",
     "start:seperate": "concurrently \"cd proa_advisor && npm start\" \"cd proa_advisor_react && npm run dev\"",
+    "rebuild": "cd proa_advisor && npm run rebuild",
     "start:all": "cd proa_advisor && npm run start:all"
   },
   "dependencies": {
