@@ -63,6 +63,28 @@ app.get("/", (req, res) => {
     res.sendFile(__dirname + "/public/index.html");
 });
 
+
+/* Captive portal setup */
+// Android
+app.get("/generate_204", (req, res) => {
+    res.redirect("/");
+});
+
+// Android newer versions
+app.get("/gen_204", (req, res) => {
+    res.redirect("/");
+});
+
+// Apple iOS/macOS
+app.get("/hotspot-detect.html", (req, res) => {
+    res.redirect("/");
+});
+
+// Windows
+app.get("/ncsi.txt", (req, res) => {
+    res.redirect("/");
+});
+
 app.listen(port, "0.0.0.0", () => {
     console.log(`Listening on port ${port}`);
     console.log(`Access the application at http://localhost:${port}`);

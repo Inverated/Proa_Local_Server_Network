@@ -57,7 +57,7 @@ Still takes around 20s to boot up
 ## Download packages
 ```
 sudo apt full-upgrade
-sudo apt install git nodejs npm curl hostapd dnsmasq -y
+sudo apt install git nodejs npm curl hostapd dnsmasq iptables -y
 sudo npm install yarn -g
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
 source ~/.bashrc
@@ -77,4 +77,161 @@ git clone https://github.com/Inverated/Proa_Local_Server_Network advisor
 cd advisor/
 yarn install
 yarn start:all
+```
+
+
+## Setting up network
+
+Get ip address
+```
+hostname -I
+```
+
+```
+sudo systemctl stop hostapd
+sudo systemctl stop dnsmasq
+```
+
+```
+sudo nano /etc/NetworkManager/conf.d/unmanaged.conf
+```
+
+```
+[keyfile]
+unmanaged-devices=interface-name:wlan0
+```
+
+`sudo nano /etc/dhcpcd.conf`
+
+```
+interface wlan0
+static ip_address=192.168.4.1/24
+nohook wpa_supplicant
+```
+
+```
+sudo systemctl restart dhcpcd
+```
+
+`sudo nano /etc/hostapd/hostapd.conf`
+```
+interface=wlan0
+driver=nl80211
+
+ssid=ProaII
+
+hw_mode=g
+channel=6
+
+country_code=SG
+
+wmm_enabled=1
+
+auth_algs=1
+ignore_broadcast_ssid=0
+
+wpa=2
+wpa_passphrase=password
+
+wpa_key_mgmt=WPA-PSK
+rsn_pairwise=CCMP
+```
+
+`sudo nano /etc/default/hostapd`
+```
+DAEMON_CONF="/etc/hostapd/hostapd.conf"
+```
+
+```
+sudo mv /etc/dnsmasq.conf /etc/dnsmasq.conf.orig
+sudo nano /etc/dnsmasq.conf
+```
+
+```
+interface=wlan0
+
+dhcp-range=192.168.4.2,192.168.4.100,255.255.255.0,24h
+
+dhcp-option=3,192.168.4.1
+dhcp-option=6,192.168.4.1
+
+address=/#/192.168.4.1
+```
+
+```
+sudo systemctl unmask hostapd
+sudo systemctl enable hostapd
+sudo systemctl enable dnsmasq
+
+sudo systemctl start hostapd
+sudo systemctl start dnsmasq
+```
+
+`iw dev wlan0 info`
+Check if type for wlan0 is AP
+
+
+Redirect root port to 4000
+```
+sudo iptables -t nat -A PREROUTING -i wlan0 -p tcp --dport 80 -j REDIRECT --to-port 4000
+```
+
+## auto connect / redirect anywhere.com
+`sudo nano /etc/systemd/system/solarproa-redirect-connection.service`
+
+```
+[Unit]
+Description=Redirect HTTP port 80 to Advisor port 4000
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/sh -c '/usr/sbin/iptables -t nat -C PREROUTING -i wlan0 -p tcp --dport 80 -j REDIRECT --to-ports 4000 || /usr/sbin/iptables -t nat -A PREROUTING -i wlan0 -p tcp --dport 80 -j REDIRECT --to-ports 4000'
+ExecStop=/bin/sh -c '/usr/sbin/iptables -t nat -D PREROUTING -i wlan0 -p tcp --dport 80 -j REDIRECT --to-ports 4000 || true'
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```
+sudo systemctl daemon-reload
+sudo systemctl enable solarproa-redirect-connection
+sudo systemctl start solarproa-redirect-connection
+```
+
+
+## auto start
+
+`sudo nano /etc/systemd/system/solarproa-advisor.service`
+
+```nano
+[Unit]
+Description=Solar Proa Advisor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=admin
+WorkingDirectory=/home/admin/apps/advisor/
+ExecStart=/usr/local/bin/yarn start:all
+Restart=always
+RestartSec=5
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```
+sudo systemctl daemon-reload
+sudo systemctl enable solarproa-advisor
+sudo systemctl start solarproa-advisor
+```
+
+Check log
+```
+journalctl -u solarproa-advisor -f
 ```
