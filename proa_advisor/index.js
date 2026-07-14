@@ -52,7 +52,7 @@ app.get("/initial_data", async (req, res) => {
     try {
         const runId = await getCurrentRunId();
         const initialData = await populateInitalChartData(runId);
-        res.json(initialData);
+        res.json(initialData.reverse());
     } catch (error) {
         console.error("Error fetching initial data:", error);
         res.status(500).send("Error fetching initial data");

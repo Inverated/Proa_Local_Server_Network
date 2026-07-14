@@ -11,7 +11,7 @@ import Box from '@mui/material/Box';
 4. Current Load, MPPT, Net Main, Net Alt (actual vs corrected)
 */
 
-const ARRAY_LENGTH = 500;
+const ARRAY_LENGTH = 1000;
 
 export default function PowerManagement({data}: {data: PowerData | null}) {
     const [xData, setXData] = useState<number[]>([]);
@@ -51,27 +51,26 @@ export default function PowerManagement({data}: {data: PowerData | null}) {
                 try {
                     const response = await fetch("/initial_data");
                     const initialData: PowerData[] = await response.json();
+                    console.log("Fetched initial data:", initialData);
                     if (initialData && initialData.length > 0) {
-                        initialData.forEach((data) => {
-                            // TODO: Fix the data order reversed on recovery
-                            setXData((prevXData) => [data.total_time, ...prevXData].slice(-defaultLength));
-                            data.V_batt_main != undefined && setVoltageReadingMain((prev) => [...prev, data.V_batt_main as number].slice(-defaultLength));
-                            data.Corrected_V_batt_main != undefined && setCorrectedVoltageMain((prev) => [...prev, data.Corrected_V_batt_main as number].slice(-defaultLength));
-                            data.OCV_batt_main != undefined && setOCVMain((prev) => [...prev, data.OCV_batt_main as number].slice(-defaultLength));
-                            data.SoC_batt_main != undefined && setSocMain((prev) => [...prev, data.SoC_batt_main as number].slice(-defaultLength));
-                            data.V_batt_alternate != undefined && setVoltageReadingAlt((prev) => [...prev, data.V_batt_alternate as number].slice(-defaultLength));
-                            data.Corrected_V_batt_alternate != undefined && setCorrectedVoltageAlt((prev) => [...prev, data.Corrected_V_batt_alternate as number].slice(-defaultLength));
-                            data.OCV_batt_alternate != undefined && setOCVAlt((prev) => [...prev, data.OCV_batt_alternate as number].slice(-defaultLength));
-                            data.SoC_batt_alternate != undefined && setSocAlt((prev) => [...prev, data.SoC_batt_alternate as number].slice(-defaultLength));
-                            data.I_load != undefined && setCurrentLoad((prev) => [...prev, data.I_load as number].slice(-defaultLength));
-                            data.I_mppt != undefined && setCurrentMPPT((prev) => [...prev, data.I_mppt as number].slice(-defaultLength));
-                            data.I_batt_main != undefined && setCurrentNetMain((prev) => [...prev, data.I_batt_main as number].slice(-defaultLength));
-                            data.I_batt_alternate != undefined && setCurrentNetAlt((prev) => [...prev, data.I_batt_alternate as number].slice(-defaultLength));
-                            data.Corrected_I_load != undefined && setCorrectedCurrentLoad((prev) => [...prev, data.Corrected_I_load as number].slice(-defaultLength));
-                            data.Corrected_I_mppt != undefined && setCorrectedCurrentMPPT((prev) => [...prev, data.Corrected_I_mppt as number].slice(-defaultLength));
-                            data.Corrected_I_batt_main != undefined && setCorrectedCurrentNetMain((prev) => [...prev, data.Corrected_I_batt_main as number].slice(-defaultLength));
-                            data.Corrected_I_batt_alternate != undefined && setCorrectedCurrentNetAlt((prev) => [...prev, data.Corrected_I_batt_alternate as number].slice(-defaultLength));
-                        });
+                            console.log("Initial data:", initialData);
+                            setXData(initialData[0].total_time.slice(0, defaultLength));
+                            initialData[0].V_batt_main != undefined && setVoltageReadingMain(initialData[0].V_batt_main.slice(0, defaultLength));
+                            initialData[0].Corrected_V_batt_main != undefined && setCorrectedVoltageMain(initialData[0].Corrected_V_batt_main.slice(0, defaultLength));
+                            initialData[0].OCV_batt_main != undefined && setOCVMain(initialData[0].OCV_batt_main.slice(0, defaultLength));
+                            initialData[0].SoC_batt_main != undefined && setSocMain(initialData[0].SoC_batt_main.slice(0, defaultLength));
+                            initialData[0].V_batt_alternate != undefined && setVoltageReadingAlt(initialData[0].V_batt_alternate.slice(0, defaultLength));
+                            initialData[0].Corrected_V_batt_alternate != undefined && setCorrectedVoltageAlt(initialData[0].Corrected_V_batt_alternate.slice(0, defaultLength));
+                            initialData[0].OCV_batt_alternate != undefined && setOCVAlt(initialData[0].OCV_batt_alternate.slice(0, defaultLength));
+                            initialData[0].SoC_batt_alternate != undefined && setSocAlt(initialData[0].SoC_batt_alternate.slice(0, defaultLength));
+                            initialData[0].I_load != undefined && setCurrentLoad(initialData[0].I_load.slice(0, defaultLength));
+                            initialData[0].I_mppt != undefined && setCurrentMPPT(initialData[0].I_mppt.slice(0, defaultLength));
+                            initialData[0].I_batt_main != undefined && setCurrentNetMain(initialData[0].I_batt_main.slice(0, defaultLength));
+                            initialData[0].I_batt_alternate != undefined && setCurrentNetAlt(initialData[0].I_batt_alternate.slice(0, defaultLength));
+                            initialData[0].Corrected_I_load != undefined && setCorrectedCurrentLoad(initialData[0].Corrected_I_load.slice(0, defaultLength));
+                            initialData[0].Corrected_I_mppt != undefined && setCorrectedCurrentMPPT(initialData[0].Corrected_I_mppt.slice(0, defaultLength));
+                            initialData[0].Corrected_I_batt_main != undefined && setCorrectedCurrentNetMain(initialData[0].Corrected_I_batt_main.slice(0, defaultLength));
+                            initialData[0].Corrected_I_batt_alternate != undefined && setCorrectedCurrentNetAlt(initialData[0].Corrected_I_batt_alternate.slice(0, defaultLength));
                     }
                 } catch (error) {
                     console.error("Error fetching initial data:", error);
