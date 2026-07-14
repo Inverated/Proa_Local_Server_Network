@@ -224,8 +224,6 @@ WantedBy=multi-user.target
 sudo systemctl daemon-reload
 sudo systemctl enable solarproa-advisor
 sudo systemctl start solarproa-advisor
-journalctl -u solarproa-advisor -f
-
 ```
 
 Check log
@@ -241,13 +239,55 @@ sudo nmcli device wifi connect "YourSSID" password "YourPassword" ifname wlan1
 ```
 
 
-## update & restart
-Use the latest. Local should not be updated
+## Auto update & restart
 ```
-cd apps/advisor
-git reset --hard
-git pull
-yarn rebuild
-sudo reboot
+sudo nano /usr/local/bin/git_update_advisor.sh
 ```
 
+```
+#!/bin/bash
+
+set -e
+
+REPO="/apps/advisor/"
+
+# Wait until internet is actually reachable
+until ping -c1 github.com >/dev/null 2>&1; do
+    echo "Waiting for internet..."
+    sleep 5
+done
+
+cd "$REPO"
+
+git fetch origin
+git reset --hard origin/main
+git pull origin main
+
+echo "Update completed."
+```
+
+```
+sudo chmod +x /usr/local/bin/git_update_advisor.sh
+sudo nano /etc/systemd/system/solarproa-advisor-update.service
+```
+
+```
+[Unit]
+Description=Update advisory system from Git
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=pi
+ExecStart=/usr/local/bin/git_update_advisor.sh
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```
+sudo systemctl daemon-reload
+sudo systemctl enable solarproa-advisor-update.service
+journalctl -u solarproa-advisor-update -f
+```
