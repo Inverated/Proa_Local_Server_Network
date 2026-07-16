@@ -59,6 +59,7 @@ let total_mppt_W                = 0;
 let total_batt1_net_W           = 0;
 let total_batt2_net_W           = 0;
 let total_time = 0;
+let sensor_power_consumption    = 0;  // Total power consumption of sensors in Watts
 
 
 // Smoothing
@@ -264,6 +265,12 @@ async function onNewSample(sample, force_log = false, is_test = false) {
             }
         }
 
+        if (alternate_battery) {
+            batt2_net += sensor_power_consumption / batt2_v;
+        } else if (main_battery) {
+            batt1_net += sensor_power_consumption / batt1_v;
+        }
+        
         time_diff_window.push(Number(time_diff_us));
         mppt_out_window.push(Number(mppt_out));
         load_in_window.push(Number(load_in));
@@ -477,7 +484,12 @@ function getMedian(arr) {
     return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
+function setSensorPowerConsumption(power) {
+    sensor_power_consumption = Math.abs(power);
+}
+
 module.exports = {
     onNewSample,
-    getCurrentRunId
+    getCurrentRunId,
+    setSensorPowerConsumption
 }

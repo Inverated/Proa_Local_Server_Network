@@ -12,7 +12,7 @@ function additiveChecksum(readings, counter) {
     return sum % 65536;
 }
 
-function parsePowerData(recvBuf, packet_bytes, lastCounter, offsetCounter, packetSkipped = 0) {
+function parsePowerData(recvBuf, packet_bytes, packetSkipped = 0) {
     const counter = recvBuf.readUInt16LE(4);
     const time_diff_us = recvBuf.readUInt32LE(6);
     const readings = [];
@@ -24,30 +24,15 @@ function parsePowerData(recvBuf, packet_bytes, lastCounter, offsetCounter, packe
     if (chksum !== additiveChecksum(readings, counter)) {
         console.warn(`Checksum fail at counter ${counter}. Re-syncing.`);
         recvBuf = recvBuf.subarray(1);
-        return [null, lastCounter, offsetCounter];
+        return null;
     }
-
-    // Counter realignment on 16-bit wraparound
-    let adjustedCounter = counter;
-    if (lastCounter !== -1) {
-        if (counter < lastCounter && (lastCounter - counter) > 0x7FFF) {
-            offsetCounter = (lastCounter + 1) - counter;
-        }
-    }
-    adjustedCounter = counter + offsetCounter;
-
-    if (lastCounter !== -1 && adjustedCounter !== lastCounter + 1) {
-        console.warn(`Packet loss: counter jumped from ${lastCounter} to ${adjustedCounter}`);
-    }
-
-    lastCounter = adjustedCounter;
 
     if (time_diff_us > TIME_BETWEEN_SAMPLES_ALERT) {
         console.warn(`Large time gap: ${time_diff_us} us at counter ${adjustedCounter}`);
     }
 
     queue.push({
-        counter: adjustedCounter,
+        counter: counter,
         time_diff_us: time_diff_us,
         a0: readings[0],
         a1: readings[1],
@@ -59,7 +44,7 @@ function parsePowerData(recvBuf, packet_bytes, lastCounter, offsetCounter, packe
         a7: readings[7],
     });
     
-    return [recvBuf.subarray(packet_bytes), lastCounter, offsetCounter];
+    return recvBuf.subarray(packet_bytes);
 }
 
 

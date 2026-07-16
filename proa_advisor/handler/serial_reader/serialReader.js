@@ -2,11 +2,16 @@ const { SerialPort } = require('serialport');
 const { ReadlineParser } = require('@serialport/parser-readline');
 const { onNewSample } = require("../../lib/kalman_filter")
 const { parsePowerData, consumePowerQueue } = require('./components/power_data_parser');
+const { parseSensorPowerData } = require('./components/sensor_power_parser');
  
 const PACKET_BYTES = 4 + 2 + 4 + (8 * 2) + 2; // Fix at 28 bytes
 const POWER_HEADER = 'PWER';
 const POWER_HEADER_BUFFER = Buffer.from(POWER_HEADER, 'ascii');
 const POWER_HEADER_INT = POWER_HEADER_BUFFER.readUInt32LE(0);
+
+const SENSOR_HEADER = 'SENS';
+const SENSOR_HEADER_BUFFER = Buffer.from(SENSOR_HEADER, 'ascii');
+const SENSOR_HEADER_INT = SENSOR_HEADER_BUFFER.readUInt32LE(0);
 
 async function findValidPort(baudRate = 2000000, timeoutMs = 2000) {
     // Get the list of ports for the device
@@ -50,6 +55,8 @@ async function findValidPort(baudRate = 2000000, timeoutMs = 2000) {
                     return { port, path: portInfo.path };
                 } else if (line && line.includes(POWER_HEADER)) {
                     return { port, path: portInfo.path };
+                } else if (line && line.includes(SENSOR_HEADER)) {
+                    return { port, path: portInfo.path };
                 }
                 console.log(`Attempt ${attempt + 1}/3: No valid response from ${portInfo.path}`);
             }
@@ -67,8 +74,6 @@ async function findValidPort(baudRate = 2000000, timeoutMs = 2000) {
 
 
 let recvBuf = Buffer.alloc(0);
-let lastCounter = -1;
-let offsetCounter = 0;
 
 let packetSkipped = 0;
 function processBuffer() {
@@ -79,15 +84,24 @@ function processBuffer() {
         headerType = recvBuf.readUInt32LE(0);
         if (headerType === POWER_HEADER_INT) {
             if (recvBuf.length < PACKET_BYTES) break;
-            const [result, updatedLastCounter, updatedOffsetCounter] = parsePowerData(recvBuf, PACKET_BYTES, lastCounter, offsetCounter, packetSkipped);
+            const result = parsePowerData(recvBuf, PACKET_BYTES, packetSkipped);
             if (!result) {
                 packetSkipped++;
                 recvBuf = recvBuf.subarray(1); // Advance one byte to re-sync
                     continue; // Resync to next header
             } else {
                 recvBuf = result;
-                lastCounter = updatedLastCounter;
-                offsetCounter = updatedOffsetCounter;
+                packetSkipped = 0;
+            }
+        } else if (headerType === SENSOR_HEADER_INT) {
+            if (recvBuf.length < PACKET_BYTES) break;
+            const result = parseSensorPowerData(recvBuf, PACKET_BYTES, packetSkipped);
+            if (!result) {
+                packetSkipped++;
+                recvBuf = recvBuf.subarray(1); // Advance one byte to re-sync
+                continue; // Resync to next header
+            } else {
+                recvBuf = result;
                 packetSkipped = 0;
             }
         } else { // add on for more type
@@ -96,10 +110,9 @@ function processBuffer() {
             continue;
         }
     }
-    //console.log(`Buffer length: ${recvBuf.length}, Last Counter: ${lastCounter}, Offset Counter: ${offsetCounter}, Packets Skipped: ${packetSkipped}`);
     if (headerType === POWER_HEADER_INT) {
         consumePowerQueue();
-    } // add  on for more type
+    }// add  on for more type / run consume queue for all
 }
 
 async function startSerialReader() {
@@ -131,8 +144,6 @@ async function startSerialReader() {
     port.on('close', () => {
         console.warn(`Port ${path} closed. Rescanning...`);
         recvBuf = Buffer.alloc(0); // Clear buffer on disconnect
-        lastCounter = -1;
-        offsetCounter = 0;
         setTimeout(startSerialReader, 5000);
     });
 

@@ -60,10 +60,9 @@ void finalizePacket(PacketT &pkt, uint32_t header, uint16_t counter) {
   pkt.header = header;
   pkt.counter = counter;
 
-  // Padding should be zero because clearPacket() was called before filling.
   pkt.chksum = checksum16_bytes(
-    (const uint8_t *)&pkt,
-    sizeof(pkt) - sizeof(pkt.chksum));
+    (const uint8_t *)&pkt.counter,
+    sizeof(pkt) - sizeof(pkt.header) - sizeof(pkt.chksum));
 }
 
 template<typename PacketT>
@@ -274,6 +273,7 @@ void loop() {
     incrementCounter(counter);
 
     sendPacket(pkt);
+    prev_time = time_now;
   }
 
   taskYIELD();
