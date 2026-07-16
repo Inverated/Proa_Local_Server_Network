@@ -1,0 +1,58 @@
+Component overview (location -> purpose)
+
+1) IMU.ino
+   Path: firmware\ESP32\IMU\IMU.ino
+   Purpose: Simple BLE top-node example that reads LSM6DS3 accel, computes roll/pitch, and advertises them via a BLE characteristic (XIAO_TOP_IMU). Used for broadcasting angle packets.
+
+2) revised_top_node.ino
+   Path: mast_monitor_package\firmware\revised_top_node\revised_top_node.ino
+   Purpose: Top IMU node. Reads accel, applies a low-pass gravity filter, publishes GravityPacket (gx,gy,gz,seq) over BLE to a base node at ~20Hz.
+
+3) revised_base_node.ino
+   Path: mast_monitor_package\firmware\revised_base_node\revised_base_node.ino
+   Purpose: Base bridge. Reads base IMU, connects to top node over BLE, subscribes to top gravity packets, filters vectors, computes roll/pitch, zeroing, and exposes telemetry & command BLE service for a browser dashboard (CSV telemetry).
+
+4) top_node_pairing_display.ino
+   Path: mast-monitor-pairing-display\arduino\top_node_pairing_display\top_node_pairing_display.ino
+   Purpose: Top node variant for pairing/display. Publishes gravity packets and periodic status string characteristic to help pairing and diagnostics.
+
+5) base_bridge_pairing_display.ino
+   Path: mast-monitor-pairing-display\arduino\base_bridge_pairing_display\base_bridge_pairing_display.ino
+   Purpose: Base bridge variant supporting pairing UI. Scans/connects to top, exposes telemetry, command, and status characteristics to a browser pairing dashboard; supports PAIR/START/STOP/ZERO commands and telemetry CSV output.
+
+6) mast_monitor_package node server
+   Path: mast_monitor_package\node_app\server.js
+   Purpose: Fastify server serving a simple browser dashboard (public/) and /api/log endpoints to start/stop/append CSV logs (fields: timestamp,baseRoll,basePitch,topRoll,topPitch,deltaRoll,deltaPitch,totalAngle).
+   Additional: public app.js implements Web Bluetooth client to connect to XIAO_BASE_BRIDGE, render telemetry, send commands, and call the log API.
+
+7) mast-monitor-pairing-display node server
+   Path: mast-monitor-pairing-display\server.js
+   Purpose: Fastify server for the pairing/display UI. Serves public UI and richer /api/log endpoints using expanded CSV_FIELDS (includes topMinusBase, bendMagnitude, vectorAngle, topSeq and status fields). Supports CSV escaping.
+   Additional: public app.js implements a richer Web Bluetooth UI: pairing, status updates, telemetry parsing, and resilient log append queueing.
+
+Notes:
+- package.json files exist under both node app folders (node_app and mast-monitor-pairing-display) defining Node dependencies and start scripts.
+- Main components: top IMU nodes (publish filtered gravity vector), base bridge nodes (aggregate, compute angles, expose telemetry & commands), and browser dashboards (connect via Web Bluetooth and log telemetry via local HTTP server).
+
+BLE communication and roles:
+- Top node: advertises the gravity characteristic (UUIDs starting with 19B10010/11). It is the broadcaster; it does not initiate connections to the base.
+- Base node: actively scans for a device named "XIAO_TOP_IMU", connects, discovers the gravity characteristic, and subscribes to notifications. The base acts as the collector/master for the top node and also reads its own IMU.
+- Collector/third device: there is no separate ESP32 that collects from both. The base node collects both top and base IMU data and exposes telemetry to a browser (XIAO_BASE_BRIDGE). The browser (web app) and optional local Node server act as the UI and log collector but are not required for the BLE link between top and base.
+
+Commands from the web app to the ESP32 (written to the command BLE characteristic):
+- START: Sent to the base node. Enables sensing and periodic telemetry output on the base. The command itself only affects the base, but effective telemetry output requires both IMUs connected and zeroed (the base will auto-zero if both IMUs are ready).
+- STOP: Sent to the base node. Disables sensing and stops telemetry updates on the base. This operates on the base only (no top interaction required to process the command).
+- ZERO: Sent to the base node. Captures the current pose as the zero reference for both base and top; requires both IMUs to be ready/connected so the base can read the top packet and compute a joint zero. (Requires interaction with both top and base.)
+- PAIR / PAIR_TOP / SCAN: Sent to the base node (pairing-display firmware). Instructs the base to scan for and attempt to connect/pair with the top node. This is a base-initiated action that interacts with the top during pairing.
+- RESET_ZERO: Sent to the base node (pairing-display firmware). Clears the stored zero state on the base so a new ZERO can be captured; does not require the top to be connected to execute (base-only).
+
+Web app logging API calls (local Node server):
+- POST /api/log/start: Create/open a new CSV log file and return its path.
+- POST /api/log/stop: Close the active log file.
+- POST /api/log/append: Append a telemetry row (JSON) to the active CSV log. The browser sends telemetry here after decoding BLE notifications.
+
+Where command handling is implemented:
+- revised_base_node.ino and base_bridge_pairing_display.ino: handleCommand(...) implements START/STOP/ZERO (and PAIR/RESET_ZERO in the pairing variant).
+- public/app.js (both node apps): call writeCommand("START"/"STOP"/"ZERO"/"PAIR_TOP") and use the Node server /api/log endpoints for logging.
+
+Saved at: firmware\ESP32\IMU\component_overview.txt

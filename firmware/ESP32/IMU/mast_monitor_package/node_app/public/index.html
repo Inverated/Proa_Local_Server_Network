@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Mast Monitor</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <main class="wrap">
+    <h1>Mast Monitor</h1>
+    <p class="sub">Base XIAO BLE control + local CSV logging</p>
+
+    <section class="card">
+      <h2>Connection</h2>
+      <div class="row">
+        <button id="connectBtn">Connect BLE</button>
+        <button id="disconnectBtn" disabled>Disconnect</button>
+      </div>
+      <div id="connStatus" class="status">Disconnected</div>
+    </section>
+
+    <section class="card">
+      <h2>Control</h2>
+      <div class="row">
+        <button id="startBtn" disabled>Start Sensing</button>
+        <button id="stopBtn" disabled>Stop Sensing</button>
+        <button id="zeroBtn" disabled>Zero / Reset</button>
+      </div>
+      <div class="row">
+        <button id="logStartBtn" disabled>Start Logging</button>
+        <button id="logStopBtn" disabled>Stop Logging</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Live Values</h2>
+      <div class="grid">
+        <div><span>Base Roll</span><strong id="baseRoll">--</strong></div>
+        <div><span>Base Pitch</span><strong id="basePitch">--</strong></div>
+        <div><span>Top Roll</span><strong id="topRoll">--</strong></div>
+        <div><span>Top Pitch</span><strong id="topPitch">--</strong></div>
+        <div><span>Δ Roll</span><strong id="deltaRoll">--</strong></div>
+        <div><span>Δ Pitch</span><strong id="deltaPitch">--</strong></div>
+        <div><span>Total Angle</span><strong id="totalAngle">--</strong></div>
+        <div><span>Last Update</span><strong id="lastUpdate">--</strong></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Console</h2>
+      <pre id="console"></pre>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>
