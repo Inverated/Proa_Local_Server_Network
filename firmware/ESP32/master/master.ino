@@ -105,6 +105,8 @@ inline bool init_esp_now() {
   return true;
 }
 
+
+// Onboard OLED display
 U8G2_SSD1306_72X40_ER_F_SW_I2C u8g2(U8G2_R0, /* clock=*/6, /* data=*/5, /* reset=*/U8X8_PIN_NONE);
 
 inline bool init_OLED() {
@@ -131,6 +133,40 @@ inline void update_connected_dev(uint8_t count) {
   last_count_displayed = count;
 }
 
+// Read from serial for commands to send to child node via esp-now
+// "mac_addr|command"
+void checkForSerialCommands() {
+  if (Serial.available()) {
+    String cmd = Serial.readStringUntil('\n');
+    // Parse the command and MAC address
+    int colonIndex = cmd.indexOf('|');
+    if (colonIndex != -1) {
+      String macAddress = cmd.substring(0, colonIndex);
+      String command = cmd.substring(colonIndex + 1);
+      sendCommandToNode(macAddress, command);
+    }
+  }
+}
+
+void sendCommandToNode(const String& macAddress, const String& command) {
+  // Convert MAC address string to byte array
+  uint8_t mac[6];
+  sscanf(macAddress.c_str(), "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx", &mac[0], &mac[1], &mac[2], &mac[3], &mac[4], &mac[5]);
+
+  // Send the command via ESP-NOW
+  esp_err_t result = esp_now_send(mac, (uint8_t*)command.c_str(), command.length());
+  if (result == ESP_OK) {
+    Serial.println("Command sent successfully");
+  } else {
+    Serial.println("Error sending command");
+  }
+}
+
+
+
+
+
+
 void setup() {
   Serial.begin(BAUD_RATE);
   WiFi.mode(WIFI_STA);
@@ -154,6 +190,8 @@ void loop() {
 
   TickType_t elapsed = now_tick - last_tick;
   
+  checkForSerialCommands();
+
   // Couldnt get interupt to work. On connect, will lose a few ms
   if (now_tick > last_tick && elapsed > pdMS_TO_TICKS(2000)) {
     memset(mac_addr_table, 0, sizeof(mac_addr_table));
