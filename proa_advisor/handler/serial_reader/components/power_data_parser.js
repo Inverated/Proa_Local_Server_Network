@@ -28,7 +28,7 @@ function parsePowerData(recvBuf, packet_bytes, packetSkipped = 0) {
     }
 
     if (time_diff_us > TIME_BETWEEN_SAMPLES_ALERT) {
-        console.warn(`Large time gap: ${time_diff_us} us at counter ${adjustedCounter}`);
+        console.warn(`Large time gap: ${time_diff_us} us at counter ${counter}`);
     }
 
     queue.push({

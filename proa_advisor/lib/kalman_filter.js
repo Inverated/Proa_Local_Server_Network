@@ -115,6 +115,16 @@ async function onNewSample(sample, force_log = false, is_test = false) {
         let batt2_net = adc_to_current(a3, 1);
         let batt1_v = adc_to_voltage(a6, 5) * VOLTAGE_DIVIDER_RATIO;
         let batt2_v = adc_to_voltage(a7, 5) * VOLTAGE_DIVIDER_RATIO;
+        
+        if (sensor_power_consumption > 0) {
+            if (alternate_battery) {
+                batt2_net += sensor_power_consumption / batt2_v;
+            } else if (main_battery) {
+                batt1_net += sensor_power_consumption / batt1_v;
+            }
+            load_in += sensor_power_consumption / (alternate_battery ? batt2_v : batt1_v);
+        }
+
 
         // Temporary fixes
         //batt1_v -= 2.0;
@@ -263,12 +273,6 @@ async function onNewSample(sample, force_log = false, is_test = false) {
             } catch (err) {
                 throw err;
             }
-        }
-
-        if (alternate_battery) {
-            batt2_net += sensor_power_consumption / batt2_v;
-        } else if (main_battery) {
-            batt1_net += sensor_power_consumption / batt1_v;
         }
         
         time_diff_window.push(Number(time_diff_us));
