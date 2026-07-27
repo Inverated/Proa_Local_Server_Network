@@ -52,7 +52,6 @@ export default function Dashboard(props: { disableCustomTheme?: boolean }) {
             handleMessageEvent(eventSource);
         }
 
-
         return () => {
             eventSource?.close();
         };
@@ -62,11 +61,7 @@ export default function Dashboard(props: { disableCustomTheme?: boolean }) {
         eventSource.onopen = () => {
             console.log("Connected to data stream");
         }
-
-        eventSource.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            setPowerData(data);
-        }
+        
         eventSource.addEventListener("power", (event) => {
             const data = JSON.parse(event.data);
             setPowerData(data);

@@ -15,9 +15,12 @@
     "start:all": "yarn && yarn run build:react && yarn run copy:react && yarn run start"
   },
   "dependencies": {
+    "@supabase/server": "^1.4.1",
+    "@supabase/supabase-js": "^2.110.9",
     "better-sqlite3": "^12.10.0",
     "cors": "^2.8.6",
     "csv-parser": "^3.2.1",
+    "dotenv": "^17.4.2",
     "ejs": "^5.0.1",
     "express": "^5.2.1",
     "kalman-filter": "^2.3.0",

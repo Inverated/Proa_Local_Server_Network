@@ -144,7 +144,7 @@ export default function Overview({ powerData, strainData }: { powerData: PowerDa
                         <div style={{ display: 'flex', gap: '20px', justifyContent: 'center', flexDirection: 'column' }}>
                             <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'row', justifyContent: 'left', marginLeft: '30%', gap: '20px', alignItems: 'center' }}>
                                 <BatteryGauge size={100} orientation="horizontal" aspectRatio={0.56} animated={false} value={updateIntervalRef.current !== null ? updateIntervalRef.current.batt1Percent : 0}
-                                    formatValue={(v) => updateIntervalRef.current !== null ? updateIntervalRef.current.batt1Percent.toFixed(2) : "0.000"}
+                                    formatValue={(v) => updateIntervalRef.current !== null ? updateIntervalRef.current.batt1Percent?.toFixed(2) : "0.000"}
                                     customization={{
                                         readingText: { lightContrastColor: '#676767', darkContrastColor: '#e7e7e7' },
                                         batteryMeter: { lowBatteryValue: 25, lowBatteryFill: 'red', noOfCells: 1 },
