@@ -8,33 +8,39 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
-
+ 
 const { startDB, insertBatteryState } = require('./model/power_management_models');
 const { populateInitalChartData } = require('./model/db');
 const { run_test } = require("./lib/ekf_test")
-const { getCurrentRunId } = require("./lib/kalman_filter");
+const { getCurrentRunId, setAlternateBatteryType, setMainBatteryType } = require("./lib/kalman_filter");
 const { startSerialReader } = require('./handler/serial_reader/serialReader');
+const { add_client, get_clients, remove_client } = require("./handler/client_transmission");
 
 const OVERRIDE_DB = true; // Set to true to override existing data in RC mapping tables
+const main_battery_type = "LiNMC";
+const alternate_battery_type = "LiFePO4";
 
-startDB().then(() => {
-    //return insertBatteryState(battery_type = "LiNMC", tableName = "MainRCMapping", override = OVERRIDE_DB);
-    return insertBatteryState(battery_type = "LiFePO4", tableName = "MainRCMapping", override = OVERRIDE_DB);
-}).then((count) => {
-    count && console.log(`Inserted ${count} records into MainRCMapping.`);
-}).then(() => {
-    //return insertBatteryState("LiFePO4", "AlternateRCMapping", OVERRIDE_DB);
-    return insertBatteryState("LiNMC", "AlternateRCMapping", OVERRIDE_DB);
-}).then((count) => {
-    count && console.log(`Inserted ${count} records into AlternateRCMapping.`);
-}).then(() => {
-    console.log("\n//====================================================//\nDatabase setup complete.\n//====================================================//\n");
-    //run_test();
-    startSerialReader();
-});
-
-const { add_client, get_clients, remove_client } = require("./handler/client_transmission");
+function startServer() {
+    startDB().then(() => {
+        //return insertBatteryState(battery_type = "LiNMC", tableName = "MainRCMapping", override = OVERRIDE_DB);
+        setMainBatteryType(main_battery_type);
+        return insertBatteryState(battery_type = main_battery_type, tableName = "MainRCMapping", override = OVERRIDE_DB);
+    }).then((count) => {
+        count && console.log(`Inserted ${count} records into MainRCMapping.`);
+    }).then(() => {
+        //return insertBatteryState("LiFePO4", "AlternateRCMapping", OVERRIDE_DB);
+        setAlternateBatteryType(alternate_battery_type);
+        return insertBatteryState(alternate_battery_type, "AlternateRCMapping", OVERRIDE_DB);
+    }).then((count) => {
+        count && console.log(`Inserted ${count} records into AlternateRCMapping.`);
+    }).then(() => {
+        console.log("\n//====================================================//\nDatabase setup complete.\n//====================================================//\n");
+        //run_test();
+        startSerialReader();
+    });
+}
  
+startServer();
 
 app.get("/data_stream", (req, res) => {
     res.setHeader("Content-Type", "text/event-stream");
@@ -54,6 +60,7 @@ app.get("/initial_data", async (req, res) => {
     try {
         const runId = await getCurrentRunId();
         const initialData = await populateInitalChartData(runId);
+        console.log(`Fetched initial data for runId ${runId}:`, initialData);
         res.json(initialData.reverse());
     } catch (error) {
         console.error("Error fetching initial data:", error);

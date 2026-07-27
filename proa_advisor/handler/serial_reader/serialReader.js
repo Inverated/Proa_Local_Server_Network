@@ -13,6 +13,11 @@ const SENSOR_HEADER = 'SENS';
 const SENSOR_HEADER_BUFFER = Buffer.from(SENSOR_HEADER, 'ascii');
 const SENSOR_HEADER_INT = SENSOR_HEADER_BUFFER.readUInt32LE(0);
 
+let connectedPort = null;
+function getConnectedPort() {
+    return connectedPort;
+}
+
 async function findValidPort(baudRate = 2000000, timeoutMs = 2000) {
     // Get the list of ports for the device
     // Ports only show up when something is connected, so need to re-fetch the list
@@ -29,6 +34,10 @@ async function findValidPort(baudRate = 2000000, timeoutMs = 2000) {
         // or if length of line == packet bytes, return that port
         try {
             const port = new SerialPort({ path: portInfo.path, baudRate, autoOpen: false });
+            if (!portInfo.vendorId || !portInfo.productId) {
+                console.log(`Skipping port ${portInfo.path} with missing vendor or product ID.`);
+                continue;
+            }
             port.on('error', (err) => {
                 console.error(`SerialPort error on ${portInfo.path}:`, err.message);
             });
@@ -134,6 +143,7 @@ async function startSerialReader() {
 
     const { port, path } = result;
     console.log(`Listening on ${path}`);
+    connectedPort = port; 
 
     // Use raw data events — not a line parser since this is binary
     port.on('data', (chunk) => {
@@ -154,5 +164,6 @@ async function startSerialReader() {
 }
 
 module.exports = { 
-    startSerialReader
+    startSerialReader,
+    getConnectedPort
 };

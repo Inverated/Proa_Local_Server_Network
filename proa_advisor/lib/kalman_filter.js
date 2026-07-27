@@ -1,7 +1,7 @@
 const { Battery2RCEKF } = require("./kalman_filter_helper/filter")
 const { CurrentKCLCorrector } = require("./kalman_filter_helper/kcl_corrector")
 const { adc_to_current, adc_to_voltage } = require("./adc_converter")
-const { load_battery_constants, diag } = require('./kalman_filter_helper/helper');
+const { load_battery_noise, load_battery_constants, diag } = require('./kalman_filter_helper/helper');
 const { insertMainBatteryState, insertAlternateBatteryState, insertSensorReadings, insertKCLCorrectionState, insertSocSensorData, insertSocSensorDataBulk, insertAllStatesAndReadings, getLastMainBatteryState, getLastAlternateBatteryState, getLastKCLCorrectionState, getRunId, createOrUpdateRunInfo, getRunInfo } = require("../model/db")
 const { getBatteryRC_OCV } = require("../model/db");
 const { write_to_clients } = require('../handler/client_transmission')
@@ -27,7 +27,7 @@ Batt 2: Alternate battery, LiFePO4, 2s1p pack, 48.0V nominal, 50Ah
 */
 
 const ENABLE_EKF_RESTORE            = true;       // For live run toggle. Test is always disabled
-const USE_NEW_RUN_ID                = true;
+const USE_NEW_RUN_ID                = false;
 const SAVE_STATES_TO_DB             = true;
 const SAVE_ADC_READINGS_TO_DB       = true;
 const SAMPLE_INTERVAL_MS            = 0;       // Only for test data
@@ -43,6 +43,8 @@ const KCL_CURRENT_THRESHOLD     = 0.05;
 let data_array                  = [];       // For saving adc readings to db     
 
 // EKF Implements
+let main_battery_type           = null;
+let alternate_battery_type      = null;
 let main_battery                = null;
 let alternate_battery           = null;
 let kcl_corrector               = null;
@@ -125,21 +127,12 @@ async function onNewSample(sample, force_log = false, is_test = false) {
             load_in += sensor_power_consumption / (alternate_battery ? batt2_v : batt1_v);
         }
 
-
-        // Temporary fixes
-        //batt1_v -= 2.0;
-
         try {
             [mppt_out, load_in, batt1_net, batt2_net, batt1_v, batt2_v] = detectAndCorrectFlips(mppt_out, load_in, batt1_net, batt2_net, batt1_v, batt2_v);
         } catch (err) {
             console.error(err.message);
             return; // Skip this sample due to uncorrectable KCL violation
         }
-
-        /* mppt_out = mppt_out < KCL_CURRENT_THRESHOLD ? 0 : mppt_out;
-        load_in = load_in < KCL_CURRENT_THRESHOLD ? 0 : load_in;
-        batt1_net = Math.abs(batt1_net) < KCL_CURRENT_THRESHOLD ? 0 : batt1_net;
-        batt2_net = Math.abs(batt2_net) < KCL_CURRENT_THRESHOLD ? 0 : batt2_net */;
 
         // Calculate total power for display use only (Not fully accurate)
         let mppt_power = 0;
@@ -183,7 +176,8 @@ async function onNewSample(sample, force_log = false, is_test = false) {
         // Initialising EKF instance for the batteries and KCL corrector
         if (!main_battery && batt1_v > BATT_CUTOFF_VOLTAGE) {
             try {
-                const { Q_total, sigma_v, sigma_i, sigma_kcl, interval_factor } = load_battery_constants("LiNMC");
+                const { Q_total, sigma_v, sigma_i, sigma_kcl, interval_factor } = load_battery_constants(main_battery_type);
+                const loaded_noise = load_battery_noise(main_battery_type);
                 const rc_values = await getBatteryRC_OCV(batt1_v, interval_factor, "MainRCMapping");
                 if (rc_values.length < 1) {
                     throw new Error(`No RC values found for voltage ${batt1_v.toFixed(4)}V in MainRCMapping`);
@@ -193,9 +187,10 @@ async function onNewSample(sample, force_log = false, is_test = false) {
                 avg_kcl_noise.push(sigma_kcl);
                 const noise = { 
                     voltage: sigma_v,
-                    socProcess: 1e-22,
-                    rcProcess: 1e-22,
+                    socProcess: loaded_noise ? loaded_noise.socProcess : 1e-22,
+                    rcProcess: loaded_noise ? loaded_noise.rcProcess : 1e-22,
                 }
+            
                 const initial = {
                     soc: SoC,
                     vrc1: 0,
@@ -230,6 +225,7 @@ async function onNewSample(sample, force_log = false, is_test = false) {
         if (!alternate_battery && batt2_v > BATT_CUTOFF_VOLTAGE) {
             try {
                 const { Q_total, sigma_v, sigma_i, sigma_kcl, interval_factor } = load_battery_constants("LiFePO4");
+                const loaded_noise = load_battery_noise("LiFePO4");
                 const rc_values = await getBatteryRC_OCV(batt2_v, interval_factor, "AlternateRCMapping");
                 if (rc_values.length < 1) {
                     throw new Error(`No RC values found for voltage ${batt2_v.toFixed(4)}V in AlternateRCMapping`);
@@ -239,9 +235,8 @@ async function onNewSample(sample, force_log = false, is_test = false) {
                 avg_kcl_noise.push(sigma_kcl);
 
                 const noise = { 
-                    socProcess: 1e-22,
-                    rcProcess: 1e-20,
-                    //voltage: 1e-5,
+                    socProcess: loaded_noise ? loaded_noise.socProcess : 1e-22,
+                    rcProcess: loaded_noise ? loaded_noise.rcProcess : 1e-20,
                     voltage: sigma_v ** 2,
                 }
                 const initial = {
@@ -492,8 +487,18 @@ function setSensorPowerConsumption(power) {
     sensor_power_consumption = Math.abs(power);
 }
 
+function setMainBatteryType(battery_type) {
+    main_battery_type = battery_type;
+}
+
+function setAlternateBatteryType(battery_type) {
+    alternate_battery_type = battery_type;
+}
+
 module.exports = {
     onNewSample,
     getCurrentRunId,
-    setSensorPowerConsumption
+    setSensorPowerConsumption,
+    setMainBatteryType,
+    setAlternateBatteryType
 }

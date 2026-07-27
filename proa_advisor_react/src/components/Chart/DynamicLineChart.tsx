@@ -71,7 +71,7 @@ export default function DynamicLineChart({ title, lineNames, xAxis, yAxis }: Dyn
                 const tooltipLines = params.map((param: any) => {
                     const lineName = param.seriesName;
                     const yValue = param.data;
-                    return `${lineName}: ${yValue.toFixed(significantDigits)} ${yUnit} `;
+                    return yValue ? `${lineName}: ${yValue.toFixed(significantDigits)} ${yUnit} ` : `${lineName}: No Data`;
                 });
                 return `Time: ${formatTime(Number(xValue))} <br> ${tooltipLines.join("<br>")} `;
             }

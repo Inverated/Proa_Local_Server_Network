@@ -1,5 +1,5 @@
 #include <ArduinoBLE.h>
-#include "LSM6DS3.h"
+#include "LSM6DS3.h" // Seeed Studio
 #include "Wire.h"
 #include <math.h>
 

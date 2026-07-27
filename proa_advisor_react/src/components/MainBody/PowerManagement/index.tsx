@@ -39,46 +39,96 @@ export default function PowerManagement({data}: {data: PowerData | null}) {
     const lengthSliderRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
-        let defaultLength = ARRAY_LENGTH;
-        if (localStorage.getItem("displayDataLength")) {
-            defaultLength = parseInt(localStorage.getItem("displayDataLength") || "");
-            setDisplayDataLength(defaultLength);
-        }
-
         // If xData is empty, fetch initial data to pupulate
         if (xData.length === 0) {
             const fetchInitialData = async () => {
                 try {
                     const response = await fetch("/initial_data");
                     const initialData: PowerData[] = await response.json();
-                    console.log("Fetched initial data:", initialData);
-                    if (initialData && initialData.length > 0) {
-                            console.log("Initial data:", initialData);
-                            setXData(initialData[0].total_time.slice(0, defaultLength));
-                            initialData[0].V_batt_main != undefined && setVoltageReadingMain(initialData[0].V_batt_main.slice(0, defaultLength));
-                            initialData[0].Corrected_V_batt_main != undefined && setCorrectedVoltageMain(initialData[0].Corrected_V_batt_main.slice(0, defaultLength));
-                            initialData[0].OCV_batt_main != undefined && setOCVMain(initialData[0].OCV_batt_main.slice(0, defaultLength));
-                            initialData[0].SoC_batt_main != undefined && setSocMain(initialData[0].SoC_batt_main.slice(0, defaultLength));
-                            initialData[0].V_batt_alternate != undefined && setVoltageReadingAlt(initialData[0].V_batt_alternate.slice(0, defaultLength));
-                            initialData[0].Corrected_V_batt_alternate != undefined && setCorrectedVoltageAlt(initialData[0].Corrected_V_batt_alternate.slice(0, defaultLength));
-                            initialData[0].OCV_batt_alternate != undefined && setOCVAlt(initialData[0].OCV_batt_alternate.slice(0, defaultLength));
-                            initialData[0].SoC_batt_alternate != undefined && setSocAlt(initialData[0].SoC_batt_alternate.slice(0, defaultLength));
-                            initialData[0].I_load != undefined && setCurrentLoad(initialData[0].I_load.slice(0, defaultLength));
-                            initialData[0].I_mppt != undefined && setCurrentMPPT(initialData[0].I_mppt.slice(0, defaultLength));
-                            initialData[0].I_batt_main != undefined && setCurrentNetMain(initialData[0].I_batt_main.slice(0, defaultLength));
-                            initialData[0].I_batt_alternate != undefined && setCurrentNetAlt(initialData[0].I_batt_alternate.slice(0, defaultLength));
-                            initialData[0].Corrected_I_load != undefined && setCorrectedCurrentLoad(initialData[0].Corrected_I_load.slice(0, defaultLength));
-                            initialData[0].Corrected_I_mppt != undefined && setCorrectedCurrentMPPT(initialData[0].Corrected_I_mppt.slice(0, defaultLength));
-                            initialData[0].Corrected_I_batt_main != undefined && setCorrectedCurrentNetMain(initialData[0].Corrected_I_batt_main.slice(0, defaultLength));
-                            initialData[0].Corrected_I_batt_alternate != undefined && setCorrectedCurrentNetAlt(initialData[0].Corrected_I_batt_alternate.slice(0, defaultLength));
-                    }
+                    updateInitialData(initialData);
                 } catch (error) {
-                    console.error("Error fetching initial data:", error);
+                    console.log("Falling back to localhost for initial data fetch.");
+                    try {
+                        const response = await fetch("http://localhost:4000/initial_data");
+                        const initialData: PowerData[] = await response.json();
+                        updateInitialData(initialData);
+                    } catch (error) {
+                        console.error("Fallback fetch failed:", error);
+                    }
                 }
             };
             fetchInitialData();
         }
     }, []);
+
+    function updateInitialData(initialData: PowerData[]) {
+        let defaultLength = ARRAY_LENGTH;
+        if (localStorage.getItem("displayDataLength")) {
+            defaultLength = parseInt(localStorage.getItem("displayDataLength") || "");
+            setDisplayDataLength(defaultLength);
+        }
+        if (initialData && initialData.length > 0) {
+            const initialMainVoltage: number[] = []; const initialAltVoltage: number[] = []; const initialMainSOC: number[] = []; const initialAltSOC: number[] = [];
+            const initialLoadCurrent: number[] = []; const initialMPPTCurrent: number[] = []; const initialNetMainCurrent: number[] = []; const initialNetAltCurrent: number[] = [];
+            const initialCorrectedMainVoltage: number[] = []; const initialCorrectedAltVoltage: number[] = [];
+            const initialCorrectedLoadCurrent: number[] = []; const initialCorrectedMPPTCurrent: number[] = []; const initialCorrectedNetMainCurrent: number[] = []; const initialCorrectedNetAltCurrent: number[] = [];
+            const initialOCVMain: number[] = []; const initialOCVAlt: number[] = [];
+            const initialXData: number[] = [];
+            initialData.forEach((dataPoint) => {
+                initialXData.push(dataPoint.total_time);
+                initialMainVoltage.push(dataPoint.V_batt_main);
+                initialMainSOC.push(dataPoint.SoC_batt_main);
+                initialLoadCurrent.push(dataPoint.I_load);
+                initialMPPTCurrent.push(dataPoint.I_mppt);
+                initialNetMainCurrent.push(dataPoint.I_batt_main);
+                initialNetAltCurrent.push(dataPoint.I_batt_alternate);
+                initialCorrectedMainVoltage.push(dataPoint.Corrected_V_batt_main);
+                initialCorrectedLoadCurrent.push(dataPoint.Corrected_I_load);
+                initialCorrectedMPPTCurrent.push(dataPoint.Corrected_I_mppt);
+                initialCorrectedNetMainCurrent.push(dataPoint.Corrected_I_batt_main);
+                initialCorrectedNetAltCurrent.push(dataPoint.Corrected_I_batt_alternate);
+                initialOCVMain.push(dataPoint.OCV_batt_main);
+                if (dataPoint.V_batt_alternate) {
+                    initialAltVoltage.push(dataPoint.V_batt_alternate);
+                }
+                if (dataPoint.SoC_batt_alternate) {
+                    initialAltSOC.push(dataPoint.SoC_batt_alternate);
+                }
+                if (dataPoint.Corrected_V_batt_alternate) {
+                    initialCorrectedAltVoltage.push(dataPoint.Corrected_V_batt_alternate);
+                }
+                if (dataPoint.OCV_batt_alternate) {
+                    initialOCVAlt.push(dataPoint.OCV_batt_alternate);
+                }
+            });
+            setXData(initialXData.slice(0, defaultLength));
+            setVoltageReadingMain(initialMainVoltage.slice(0, defaultLength));
+            setSocMain(initialMainSOC.slice(0, defaultLength));
+            setCurrentLoad(initialLoadCurrent.slice(0, defaultLength));
+            setCurrentMPPT(initialMPPTCurrent.slice(0, defaultLength));
+            setCurrentNetMain(initialNetMainCurrent.slice(0, defaultLength));
+            setCorrectedVoltageMain(initialCorrectedMainVoltage.slice(0, defaultLength));
+            setCorrectedVoltageAlt(initialCorrectedAltVoltage.slice(0, defaultLength));
+            setCorrectedCurrentLoad(initialCorrectedLoadCurrent.slice(0, defaultLength));
+            setCorrectedCurrentMPPT(initialCorrectedMPPTCurrent.slice(0, defaultLength));
+            setCorrectedCurrentNetMain(initialCorrectedNetMainCurrent.slice(0, defaultLength));
+            setOCVMain(initialOCVMain.slice(0, defaultLength));
+            setOCVAlt(initialOCVAlt.slice(0, defaultLength));
+            console.log(initialAltVoltage, initialAltSOC, initialNetAltCurrent, initialCorrectedNetAltCurrent);
+            if (initialAltVoltage.length > 0) {
+                setVoltageReadingAlt(initialAltVoltage.slice(0, defaultLength));
+            }
+            if (initialAltSOC.length > 0) {
+                setSocAlt(initialAltSOC.slice(0, defaultLength));
+            }
+            if (initialNetAltCurrent.length > 0) {
+                setCurrentNetAlt(initialNetAltCurrent.slice(0, defaultLength));
+            }
+            if (initialCorrectedNetAltCurrent.length > 0) {
+                setCorrectedCurrentNetAlt(initialCorrectedNetAltCurrent.slice(0, defaultLength));
+            }
+        }
+    }
 
     useEffect(() => {
         if (data) {
@@ -146,7 +196,7 @@ export default function PowerManagement({data}: {data: PowerData | null}) {
                     />
                 </Grid>
 
-                {voltageReadingAlt[0] !== undefined && (
+                {voltageReadingAlt.length != 0 && voltageReadingAlt[0] !== undefined && (
                     <Grid size={{ xs: 12, lg: 6 }}>
                         <DynamicLineChart
                             title="Alt Battery Voltage"
@@ -184,7 +234,7 @@ export default function PowerManagement({data}: {data: PowerData | null}) {
                     />
                 </Grid>
 
-                {voltageReadingAlt[0] !== undefined && (
+                {voltageReadingAlt.length != 0 && voltageReadingAlt[0] !== undefined && (
                     <Grid size={{ xs: 12, lg: 6 }}>
                         <DynamicLineChart
                             title="Alt Battery SOC"
@@ -256,7 +306,7 @@ export default function PowerManagement({data}: {data: PowerData | null}) {
                     />
                 </Grid>
 
-                {voltageReadingAlt[0] !== undefined && (
+                {voltageReadingAlt.length != 0 && voltageReadingAlt[0] !== undefined && (
                     <Grid size={{ xs: 12, lg: 6 }}>
                         <DynamicLineChart
                             title="Current Net Alt"

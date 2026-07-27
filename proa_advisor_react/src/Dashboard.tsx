@@ -35,9 +35,17 @@ export default function Dashboard(props: { disableCustomTheme?: boolean }) {
     const [powerData, setPowerData] = useState<PowerData | null>(null);
     const [strainData, setStrainData] = useState<null>(null);  // To be implemented
     useEffect(() => {
-        const eventSource = new EventSource("/data_stream");
+        let eventSource: EventSource | null = null;
+        eventSource = new EventSource("/data_stream");
+        eventSource.onerror = (error) => {
+            console.error("EventSource failed, falling back to localhost:", error);
+            eventSource?.close();
+            eventSource = new EventSource("http://localhost:4000/data_stream");
+        }
+
         eventSource.addEventListener("power", (event) => {
             const data = JSON.parse(event.data);
+            console.log("Received power data:", data);
             setPowerData(data);
         });
 
@@ -47,7 +55,7 @@ export default function Dashboard(props: { disableCustomTheme?: boolean }) {
         });
 
         return () => {
-            eventSource.close();
+            eventSource?.close();
         };
     }, []);
 
