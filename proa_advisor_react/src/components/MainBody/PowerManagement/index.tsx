@@ -114,7 +114,6 @@ export default function PowerManagement({data}: {data: PowerData | null}) {
             setCorrectedCurrentNetMain(initialCorrectedNetMainCurrent.slice(0, defaultLength));
             setOCVMain(initialOCVMain.slice(0, defaultLength));
             setOCVAlt(initialOCVAlt.slice(0, defaultLength));
-            console.log(initialAltVoltage, initialAltSOC, initialNetAltCurrent, initialCorrectedNetAltCurrent);
             if (initialAltVoltage.length > 0) {
                 setVoltageReadingAlt(initialAltVoltage.slice(0, defaultLength));
             }

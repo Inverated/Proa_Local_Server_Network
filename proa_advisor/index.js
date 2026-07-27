@@ -35,8 +35,8 @@ function startServer() {
         count && console.log(`Inserted ${count} records into AlternateRCMapping.`);
     }).then(() => {
         console.log("\n//====================================================//\nDatabase setup complete.\n//====================================================//\n");
-        //run_test();
-        startSerialReader();
+        run_test();
+        //startSerialReader();
     });
 }
  
@@ -60,7 +60,6 @@ app.get("/initial_data", async (req, res) => {
     try {
         const runId = await getCurrentRunId();
         const initialData = await populateInitalChartData(runId);
-        console.log(`Fetched initial data for runId ${runId}:`, initialData);
         res.json(initialData.reverse());
     } catch (error) {
         console.error("Error fetching initial data:", error);
