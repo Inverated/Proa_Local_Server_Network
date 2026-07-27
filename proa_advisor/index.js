@@ -15,7 +15,7 @@ const { run_test } = require("./lib/ekf_test")
 const { getCurrentRunId, setAlternateBatteryType, setMainBatteryType } = require("./lib/kalman_filter");
 const { startSerialReader } = require('./handler/serial_reader/serialReader');
 const { add_client, get_clients, remove_client } = require("./handler/client_transmission");
-
+const { updateDatabase } = require("./handler/database_update/database_update");
 const OVERRIDE_DB = true; // Set to true to override existing data in RC mapping tables
 const main_battery_type = "LiNMC";
 const alternate_battery_type = "LiFePO4";
@@ -35,11 +35,17 @@ function startServer() {
         count && console.log(`Inserted ${count} records into AlternateRCMapping.`);
     }).then(() => {
         console.log("\n//====================================================//\nDatabase setup complete.\n//====================================================//\n");
-        run_test();
-        //startSerialReader();
+        //run_test();
+        startSerialReader();
     });
 }
- 
+
+function test() {
+    console.log("Starting test...");
+}
+
+setInterval(updateDatabase, 1000); // Call updateDatabase every 10 seconds
+
 startServer();
 
 app.get("/data_stream", (req, res) => {
