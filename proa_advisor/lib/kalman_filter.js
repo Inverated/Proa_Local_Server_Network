@@ -5,7 +5,8 @@ const { load_battery_noise, load_battery_constants, diag } = require('./kalman_f
 const { insertMainBatteryState, insertAlternateBatteryState, insertSensorReadings, insertKCLCorrectionState, insertSocSensorData, insertSocSensorDataBulk, insertAllStatesAndReadings, getLastMainBatteryState, getLastAlternateBatteryState, getLastKCLCorrectionState, getRunId, createOrUpdateRunInfo, getRunInfo } = require("../model/db")
 const { getBatteryRC_OCV } = require("../model/db");
 const { write_to_clients } = require('../handler/client_transmission')
-
+const dotenv = require('dotenv');
+dotenv.config();
 /*
 ADS8688 Pinouts:
 Pin     Setup 1     Setup 2 (not in use)   Description
@@ -26,10 +27,10 @@ Batt 1: Main battery, LiNMC, 2s1p pack, 48.0V nominal, 104Ah
 Batt 2: Alternate battery, LiFePO4, 2s1p pack, 48.0V nominal, 50Ah
 */
 
-const ENABLE_EKF_RESTORE            = true;       // For live run toggle. Test is always disabled
-const USE_NEW_RUN_ID                = false;
-const SAVE_STATES_TO_DB             = true;
-const SAVE_ADC_READINGS_TO_DB       = true;
+const ENABLE_EKF_RESTORE            = process.env.ENABLE_EKF_RESTORE === 'true';
+const USE_NEW_RUN_ID                = process.env.USE_NEW_RUN_ID === 'true';
+const SAVE_STATES_TO_DB             = process.env.SAVE_STATES_TO_DB === 'true';
+const SAVE_ADC_READINGS_TO_DB       = process.env.SAVE_ADC_READINGS_TO_DB === 'true';
 const SAMPLE_INTERVAL_MS            = 0;       // Only for test data
 let ekf_sample_count                = 0;
 let current_run_id                  = null;

@@ -3,12 +3,14 @@ const path = require("path");
 const app = express();
 const port = 4000;
 const cors = require("cors");
+const dotenv = require("dotenv");
+dotenv.config();
 
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
- 
+
 const { startDB, insertBatteryState } = require('./model/power_management_models');
 const { populateInitalChartData } = require('./model/db');
 const { run_test } = require("./lib/ekf_test")
@@ -35,8 +37,11 @@ function startServer() {
         count && console.log(`Inserted ${count} records into AlternateRCMapping.`);
     }).then(() => {
         console.log("\n//====================================================//\nDatabase setup complete.\n//====================================================//\n");
-        //run_test();
-        startSerialReader();
+        if (process.env.IS_TEST_RUN === 'true') {
+            run_test();
+        } else {
+            startSerialReader();
+        }
     });
 }
 

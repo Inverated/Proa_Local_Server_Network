@@ -2,3 +2,4 @@ node_modules/
 *yarn.lock
 *.db
 package-lock.json
+*.env
