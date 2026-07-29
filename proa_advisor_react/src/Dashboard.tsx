@@ -21,6 +21,7 @@ import { useEffect, useState } from 'react';
 import Overview from './components/MainBody/Overview';
 import PowerManagement from './components/MainBody/PowerManagement';
 import StrainManagement from './components/MainBody/StrainManagement';
+import Settings from './components/Settings';
 import MessageBlock from './components/FloatingMessage/MessageBlock';
 import './data_type/message';
 import './data_type/power';
@@ -111,6 +112,7 @@ export default function Dashboard(props: { disableCustomTheme?: boolean }) {
                                 mainContent === 0 ? 'Overview' :
                                     mainContent === 1 ? 'Power Management' :
                                         mainContent === 2 ? 'Strain Management' :
+                                            mainContent === 3 ? 'Settings' :
                                             'Unknown'} />
                         <MessageBlock Messages={messages} />
                         <Stack sx={{ width: "100%", height: "100%" }}>
@@ -118,6 +120,8 @@ export default function Dashboard(props: { disableCustomTheme?: boolean }) {
                                 mainContent === 0 ? <Overview powerData={powerData} strainData={strainData} /> :
                                     mainContent === 1 ? <PowerManagement data={powerData} /> :
                                         mainContent === 2 ? <StrainManagement /> :
+                                            mainContent === 3 ? <Settings /> :
+                                                mainContent === 4 ? <div>About</div> :
                                             <div>Unknown Content</div>
                             }
                         </Stack>

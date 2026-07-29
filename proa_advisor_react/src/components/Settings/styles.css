@@ -1,0 +1,32 @@
+.settings-page {
+    width: 100%;
+    min-height: 520px;
+    display: flex;
+    border: 1px solid rgba(127, 127, 127, 0.2);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.settings-sidebar {
+    width: 260px;
+    flex-shrink: 0;
+    padding: 12px;
+    border-right: 1px solid rgba(127, 127, 127, 0.2);
+}
+
+.settings-sidebar-title {
+    margin: 0 0 8px;
+}
+
+.settings-main-body {
+    flex: 1;
+    padding: 20px;
+}
+
+.settings-main-title {
+    margin: 0;
+}
+
+.settings-main-content {
+    margin-top: 12px;
+}
