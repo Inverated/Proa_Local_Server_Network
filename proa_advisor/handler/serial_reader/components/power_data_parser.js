@@ -1,4 +1,4 @@
-const { onNewSample } = require("../../../lib/kalman_filter");
+const { onNewSample } = require("../../../lib/Kalman Filter/kalman_filter");
 
 const TIME_BETWEEN_SAMPLES_ALERT = 5000;
 const QUEUE_ALERT = 100;

@@ -1,10 +1,10 @@
 const { Battery2RCEKF } = require("./kalman_filter_helper/filter")
 const { CurrentKCLCorrector } = require("./kalman_filter_helper/kcl_corrector")
-const { adc_to_current, adc_to_voltage } = require("./adc_converter")
+const { adc_to_current, adc_to_voltage } = require("../adc_converter")
 const { load_battery_noise, load_battery_constants, diag } = require('./kalman_filter_helper/helper');
-const { insertMainBatteryState, insertAlternateBatteryState, insertSensorReadings, insertKCLCorrectionState, insertSocSensorData, insertSocSensorDataBulk, insertAllStatesAndReadings, getLastMainBatteryState, getLastAlternateBatteryState, getLastKCLCorrectionState, getRunId, createOrUpdateRunInfo, getRunInfo } = require("../model/db")
-const { getBatteryRC_OCV } = require("../model/db");
-const { write_to_clients } = require('../handler/client_transmission')
+const { insertMainBatteryState, insertAlternateBatteryState, insertSensorReadings, insertKCLCorrectionState, insertSocSensorData, insertSocSensorDataBulk, insertAllStatesAndReadings, getLastMainBatteryState, getLastAlternateBatteryState, getLastKCLCorrectionState, getRunId, createOrUpdateRunInfo, getRunInfo } = require("../../model/db")
+const { getBatteryRC_OCV } = require("../../model/db");
+const { write_to_clients } = require('../../handler/client_transmission')
 const dotenv = require('dotenv');
 dotenv.config();
 
@@ -352,8 +352,10 @@ async function updateFilter(time_diff_us, mppt_out, load_in, batt1_net, batt2_ne
     if (ekf_sample_count % SAMPLE_INTERVAL_BEFORE_WRITE === 0) {
         kcl_cov = state.covariance;
         kcl_biases = biases;
-        console.log("\nInput values - \tMain: " + batt1_v.toFixed(5) + "V, Alt: " + batt2_v.toFixed(5) + "V, \t\tLoad: " + load_in.toFixed(5) + "A, \tCharge: " + mppt_out.toFixed(5) + "A, \tBatt1: " + batt1_net.toFixed(5) + "A, \tBatt2: " + batt2_net.toFixed(5) + "A");
-        console.log(`EKF Update: ${ekf_sample_count}, KCL Corrected Currents: \t\t\tLoad: ${corrected_currents.loadCorrected.toFixed(5)}A, \tCharge: ${corrected_currents.chargeCorrected.toFixed(5)}A, \tBatt1: ${corrected_currents.battery1NetCorrected.toFixed(5)}A, \tBatt2: ${corrected_currents.battery2NetCorrected.toFixed(5)}A`);
+        if (process.env.LOG_POWER_MANAGEMENT === 'true') {
+            console.log("\nInput values - \tMain: " + batt1_v.toFixed(5) + "V, Alt: " + batt2_v.toFixed(5) + "V, \t\tLoad: " + load_in.toFixed(5) + "A, \tCharge: " + mppt_out.toFixed(5) + "A, \tBatt1: " + batt1_net.toFixed(5) + "A, \tBatt2: " + batt2_net.toFixed(5) + "A");
+            console.log(`EKF Update: ${ekf_sample_count}, KCL Corrected Currents: \t\t\tLoad: ${corrected_currents.loadCorrected.toFixed(5)}A, \tCharge: ${corrected_currents.chargeCorrected.toFixed(5)}A, \tBatt1: ${corrected_currents.battery1NetCorrected.toFixed(5)}A, \tBatt2: ${corrected_currents.battery2NetCorrected.toFixed(5)}A`);
+        }
     }
 
     let sensor_readings = {};
@@ -394,7 +396,9 @@ async function updateFilter(time_diff_us, mppt_out, load_in, batt1_net, batt2_ne
         main_state_vector = state_vector; main_state_cov = state.covariance;
 
         if (ekf_sample_count % SAMPLE_INTERVAL_BEFORE_WRITE === 0) {
-            console.log(`Counter: ${ekf_sample_count}, \tSoC Main: ${(100 * state_vector.soc).toFixed(5)}%, \tCorrected Main: ${voltageEstimate.toFixed(5)}V, Correct OCV: ${rc.OCV.toFixed(5)}V, \tCurrent Main: ${corrected_currents.battery1NetCorrected.toFixed(5)}A, \tVoltage Residual: ${voltageResidual.toFixed(5)}V`);
+            if (process.env.LOG_POWER_MANAGEMENT === 'true') {
+                console.log(`Counter: ${ekf_sample_count}, \tSoC Main: ${(100 * state_vector.soc).toFixed(5)}%, \tCorrected Main: ${voltageEstimate.toFixed(5)}V, Correct OCV: ${rc.OCV.toFixed(5)}V, \tCurrent Main: ${corrected_currents.battery1NetCorrected.toFixed(5)}A, \tVoltage Residual: ${voltageResidual.toFixed(5)}V`);
+            }
             sensor_readings.Corrected_V_batt_main = voltageEstimate;
             sensor_readings.OCV_batt_main = rc.OCV;
             sensor_readings.SoC_batt_main = state_vector.soc * 100;
@@ -410,7 +414,9 @@ async function updateFilter(time_diff_us, mppt_out, load_in, batt1_net, batt2_ne
 
         alt_state_vector = state_vector; alt_state_cov = state.covariance;
         if (ekf_sample_count % SAMPLE_INTERVAL_BEFORE_WRITE === 0) {
-            console.log(`Counter: ${ekf_sample_count}, \tSoC Alternate: ${(100 * state_vector.soc).toFixed(5)}%, \tCorrected Alt: ${voltageEstimate.toFixed(5)}V, Correct OCV: ${rc.OCV.toFixed(5)}V, \tCurrent Alternate: ${corrected_currents.battery2NetCorrected.toFixed(5)}A, \tVoltage Residual: ${voltageResidual.toFixed(5)}V`);
+            if (process.env.LOG_POWER_MANAGEMENT === 'true') {
+                console.log(`Counter: ${ekf_sample_count}, \tSoC Alternate: ${(100 * state_vector.soc).toFixed(5)}%, \tCorrected Alt: ${voltageEstimate.toFixed(5)}V, Correct OCV: ${rc.OCV.toFixed(5)}V, \tCurrent Alternate: ${corrected_currents.battery2NetCorrected.toFixed(5)}A, \tVoltage Residual: ${voltageResidual.toFixed(5)}V`);
+            }
             sensor_readings.Corrected_V_batt_alternate = voltageEstimate;
             sensor_readings.OCV_batt_alternate = rc.OCV;
             sensor_readings.SoC_batt_alternate = state_vector.soc * 100;

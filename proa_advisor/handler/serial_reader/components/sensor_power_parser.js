@@ -1,4 +1,4 @@
-const { setSensorPowerConsumption } = require('../../../lib/kalman_filter');
+const { setSensorPowerConsumption } = require('../../../lib/Kalman Filter/kalman_filter');
 
 function checksum16Bytes(buf) {
     let sum = 0;

@@ -1,6 +1,6 @@
 const { SerialPort } = require('serialport');
 const { ReadlineParser } = require('@serialport/parser-readline');
-const { onNewSample } = require("../../lib/kalman_filter")
+const { onNewSample } = require("../../lib/Kalman Filter/kalman_filter")
 const { parsePowerData, consumePowerQueue } = require('./components/power_data_parser');
 const { parseSensorPowerData } = require('./components/sensor_power_parser');
  

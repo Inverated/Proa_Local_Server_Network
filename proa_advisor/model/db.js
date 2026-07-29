@@ -1,5 +1,5 @@
 const { getDB, initializeDatabase } = require('./power_management_models');
-const { soc_to_index } = require('../lib/kalman_filter_helper/helper');
+const { soc_to_index } = require('../lib/Kalman Filter/kalman_filter_helper/helper');
 
 async function insertSocSensorData(run_id, time_diff, adcReading0, adcReading1, adcReading2, adcReading3, adcReading4, adcReading5, adcReading6, adcReading7) {
     const db = getDB();

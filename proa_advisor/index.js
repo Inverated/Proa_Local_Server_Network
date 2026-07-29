@@ -13,8 +13,8 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 const { startDB, insertBatteryState } = require('./model/power_management_models');
 const { populateInitalChartData } = require('./model/db');
-const { run_test } = require("./lib/ekf_test")
-const { getCurrentRunId, setAlternateBatteryType, setMainBatteryType } = require("./lib/kalman_filter");
+const { run_test } = require("./lib/Kalman Filter/ekf_test")
+const { getCurrentRunId, setAlternateBatteryType, setMainBatteryType } = require("./lib/Kalman Filter/kalman_filter");
 const { startSerialReader } = require('./handler/serial_reader/serialReader');
 const { add_client, get_clients, remove_client } = require("./handler/client_transmission");
 const { updateDatabase } = require("./handler/database_update/database_update");
