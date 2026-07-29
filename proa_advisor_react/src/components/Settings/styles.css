@@ -8,10 +8,14 @@
 }
 
 .settings-sidebar {
-    width: 260px;
+    width: clamp(180px, 24vw, 320px);
+    min-width: 160px;
+    max-width: 380px;
     flex-shrink: 0;
     padding: 12px;
     border-right: 1px solid rgba(127, 127, 127, 0.2);
+    resize: horizontal;
+    overflow: auto;
 }
 
 .settings-sidebar-title {
@@ -20,6 +24,7 @@
 
 .settings-main-body {
     flex: 1;
+    min-width: 0;
     padding: 20px;
 }
 
@@ -29,4 +34,29 @@
 
 .settings-main-content {
     margin-top: 12px;
+}
+
+@media (max-width: 900px) {
+    .settings-sidebar {
+        width: 220px;
+        min-width: 150px;
+        max-width: 280px;
+    }
+
+    .settings-main-body {
+        padding: 16px;
+    }
+}
+
+@media (max-width: 640px) {
+    .settings-sidebar {
+        width: 180px;
+        min-width: 130px;
+        max-width: 220px;
+        padding: 10px;
+    }
+
+    .settings-main-body {
+        padding: 12px;
+    }
 }

@@ -4,6 +4,7 @@ import Grid from '@mui/material/Grid';
 import Slider from "@mui/material/Slider";
 import Box from '@mui/material/Box';
 import "../../../data_type/power"
+
 /* Charts:
 1. Voltage Main (actual vs corrected)
 2. Voltage Alt (actual vs corrected)

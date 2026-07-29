@@ -43,9 +43,6 @@ function startServer() {
     });
 }
 
-function test() {
-    console.log("Starting test...");
-}
 
 if (process.env.USE_SUPABASE === 'true') {
     setInterval(updateDatabase, 1000); // Call updateDatabase every 10 seconds only if there is internet connection
