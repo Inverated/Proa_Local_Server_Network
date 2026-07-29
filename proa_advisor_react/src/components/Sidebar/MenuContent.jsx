@@ -9,6 +9,7 @@ import AnalyticsRoundedIcon from '@mui/icons-material/AnalyticsRounded';
 import PeopleRoundedIcon from '@mui/icons-material/PeopleRounded';
 import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded';
 import InfoRoundedIcon from '@mui/icons-material/InfoRounded';
+import ImportantDevicesIcon from '@mui/icons-material/ImportantDevices';
 import { useEffect, useState } from 'react';
 
 const mainListItems = [
@@ -18,6 +19,7 @@ const mainListItems = [
 ];
 
 const secondaryListItems = [
+    { text: 'Dev Panel', icon: <ImportantDevicesIcon /> },
     { text: 'Settings', icon: <SettingsRoundedIcon /> },
     { text: 'About', icon: <InfoRoundedIcon /> },
 ];
