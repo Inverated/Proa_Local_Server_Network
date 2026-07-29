@@ -3,7 +3,7 @@ import DynamicLineChart from "../../Chart/DynamicLineChart";
 import Grid from '@mui/material/Grid';
 import Slider from "@mui/material/Slider";
 import Box from '@mui/material/Box';
-
+import "../../../data_type/power"
 /* Charts:
 1. Voltage Main (actual vs corrected)
 2. Voltage Alt (actual vs corrected)
@@ -43,13 +43,13 @@ export default function PowerManagement({data}: {data: PowerData | null}) {
         if (xData.length === 0) {
             const fetchInitialData = async () => {
                 try {
-                    const response = await fetch("/initial_data");
+                    const response = await fetch("/initial_power_data");
                     const initialData: PowerData[] = await response.json();
                     updateInitialData(initialData);
                 } catch (error) {
                     console.log("Falling back to localhost for initial data fetch.");
                     try {
-                        const response = await fetch("http://localhost:4000/initial_data");
+                        const response = await fetch("http://localhost:4000/initial_power_data");
                         const initialData: PowerData[] = await response.json();
                         updateInitialData(initialData);
                     } catch (error) {

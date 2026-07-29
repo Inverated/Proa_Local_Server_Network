@@ -7,6 +7,7 @@ const { getBatteryRC_OCV } = require("../model/db");
 const { write_to_clients } = require('../handler/client_transmission')
 const dotenv = require('dotenv');
 dotenv.config();
+
 /*
 ADS8688 Pinouts:
 Pin     Setup 1     Setup 2 (not in use)   Description
@@ -31,7 +32,7 @@ const ENABLE_EKF_RESTORE            = process.env.ENABLE_EKF_RESTORE === 'true';
 const USE_NEW_RUN_ID                = process.env.USE_NEW_RUN_ID === 'true';
 const SAVE_STATES_TO_DB             = process.env.SAVE_STATES_TO_DB === 'true';
 const SAVE_ADC_READINGS_TO_DB       = process.env.SAVE_ADC_READINGS_TO_DB === 'true';
-const SAMPLE_INTERVAL_MS            = 0;       // Only for test data
+const SAMPLE_INTERVAL_MS            = parseInt(process.env.SAMPLE_INTERVAL_MS) || 1000;       // Only for test data
 let ekf_sample_count                = 0;
 let current_run_id                  = null;
 
@@ -52,8 +53,8 @@ let kcl_corrector               = null;
 
 // Self correction
 const CURRENT_FLIP_THRESHOLD    = 5.0; // Threshold in Amps to detect if load or MPPT current is flipped due to wiring issues
-let is_load_flipped             = false;
 let is_mppt_flipped             = false;
+// Removed load flip detection in case of regenerative braking, as load current can be negative in that case
 
 // Statistic
 let activeUpdates               = 0;  // Detect async update falling behind
@@ -112,8 +113,8 @@ async function onNewSample(sample, force_log = false, is_test = false) {
 
         let { counter, time_diff_us, a0, a1, a2, a3, a4, a5, a6, a7 } = sample;
 
+        let load_in = adc_to_current(a1, 1);
         let mppt_out = is_mppt_flipped ? -adc_to_current(a0, 1) : adc_to_current(a0, 1);
-        let load_in = is_load_flipped ? -adc_to_current(a1, 1) : adc_to_current(a1, 1);
         let batt1_net = adc_to_current(a2, 1);
         let batt2_net = adc_to_current(a3, 1);
         let batt1_v = adc_to_voltage(a6, 5) * VOLTAGE_DIVIDER_RATIO;
@@ -225,8 +226,8 @@ async function onNewSample(sample, force_log = false, is_test = false) {
 
         if (!alternate_battery && batt2_v > BATT_CUTOFF_VOLTAGE) {
             try {
-                const { Q_total, sigma_v, sigma_i, sigma_kcl, interval_factor } = load_battery_constants("LiFePO4");
-                const loaded_noise = load_battery_noise("LiFePO4");
+                const { Q_total, sigma_v, sigma_i, sigma_kcl, interval_factor } = load_battery_constants(alternate_battery_type);
+                const loaded_noise = load_battery_noise(alternate_battery_type);
                 const rc_values = await getBatteryRC_OCV(batt2_v, interval_factor, "AlternateRCMapping");
                 if (rc_values.length < 1) {
                     throw new Error(`No RC values found for voltage ${batt2_v.toFixed(4)}V in AlternateRCMapping`);
@@ -450,10 +451,6 @@ function detectAndCorrectFlips(mppt_out, load_in, batt1_net, batt2_net, batt1_v,
         batt2_net = 0;
     }
 
-    if (load_in < -CURRENT_FLIP_THRESHOLD) {
-        is_load_flipped = true;
-        load_in = -load_in;
-    }
     if (mppt_out < -CURRENT_FLIP_THRESHOLD) {
         is_mppt_flipped = true;
         mppt_out = -mppt_out;

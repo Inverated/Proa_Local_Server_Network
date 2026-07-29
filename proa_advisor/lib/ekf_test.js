@@ -9,11 +9,11 @@ function get_all_files_in_folder(folder_path) {
     return fs.readdirSync(folder_path).filter(file => file.endsWith('.csv'));
 }
 
-async function consolidated_data(path_array) {
+async function consolidated_data(path_array, file_path) {
     const promises = path_array.map(path => {
         return new Promise((resolve, reject) => {
             const file_data = [];
-            fs.createReadStream(`./model/battery_model/test_data/${path}`)
+            fs.createReadStream(`${file_path}/${path}`)
                 .pipe(csv())
                 .on('data', (row) => {
                     const { counter, timediff_us, ch0, ch1, ch2, ch3, ch4, ch5, ch6, ch7 } = row;
@@ -61,11 +61,38 @@ async function consolidated_data(path_array) {
     return consolidated;
 }
 
-const DELAY_MS = 1000; // Adjust this value as needed to simulate real-time data arrival
+function get_folders_in_folder(folder_path) {
+    return fs.readdirSync(folder_path).filter(file => fs.statSync(`${folder_path}/${file}`).isDirectory());
+}
+
 async function run_test() {
-    const files = get_all_files_in_folder(TEST_FILE_LOCATION);
+    const readline = require('readline');
+    const folders = get_folders_in_folder(TEST_FILE_LOCATION);
+    console.log(`Found ${folders.length} test folders`);
+    console.log("Select folder to run test:");
+    for (let i = 0; i < folders.length; i++) {
+        console.log(`${i + 1}. ${folders[i]}`);
+    }
+    const rl = readline.createInterface({
+        input: process.stdin,
+        output: process.stdout
+    });
+    
+    let user_input = -1;
+    while (user_input < 1 || user_input > folders.length) {
+        user_input = await new Promise((resolve) => {
+            rl.question(`Press enter the number 1-${folders.length}: `, (answer) => {
+                resolve(parseInt(answer) || -1); // parseInt will return NaN if no number found (left of input string)
+            });
+        });
+    }
+    rl.close();
+
+    console.log("Starting test...");
+    const selected_folder = folders[user_input - 1];
+    const files = get_all_files_in_folder(`${TEST_FILE_LOCATION}/${selected_folder}`);
     console.log(`Found ${files.length} test files`);
-    const consolidated = await consolidated_data(files);
+    const consolidated = await consolidated_data(files, `${TEST_FILE_LOCATION}/${selected_folder}`);
     console.log(`Total samples to process: ${consolidated.length}`);
 
     for (let i = 0; i < consolidated.length; i++) {

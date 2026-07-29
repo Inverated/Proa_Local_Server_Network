@@ -18,21 +18,19 @@ const { getCurrentRunId, setAlternateBatteryType, setMainBatteryType } = require
 const { startSerialReader } = require('./handler/serial_reader/serialReader');
 const { add_client, get_clients, remove_client } = require("./handler/client_transmission");
 const { updateDatabase } = require("./handler/database_update/database_update");
-const OVERRIDE_DB = true; // Set to true to override existing data in RC mapping tables
-const main_battery_type = "LiNMC";
-const alternate_battery_type = "LiFePO4";
 
 function startServer() {
+    const OVERRIDE_DB = process.env.OVERRIDE_DB === 'true'; // Set to true to override existing data in RC mapping tables
     startDB().then(() => {
         //return insertBatteryState(battery_type = "LiNMC", tableName = "MainRCMapping", override = OVERRIDE_DB);
-        setMainBatteryType(main_battery_type);
-        return insertBatteryState(battery_type = main_battery_type, tableName = "MainRCMapping", override = OVERRIDE_DB);
+        setMainBatteryType(process.env.MAIN_BATTERY_TYPE);
+        return insertBatteryState(battery_type = process.env.MAIN_BATTERY_TYPE  , tableName = "MainRCMapping", override = OVERRIDE_DB);
     }).then((count) => {
         count && console.log(`Inserted ${count} records into MainRCMapping.`);
     }).then(() => {
         //return insertBatteryState("LiFePO4", "AlternateRCMapping", OVERRIDE_DB);
-        setAlternateBatteryType(alternate_battery_type);
-        return insertBatteryState(alternate_battery_type, "AlternateRCMapping", OVERRIDE_DB);
+        setAlternateBatteryType(process.env.ALTERNATE_BATTERY_TYPE);
+        return insertBatteryState(process.env.ALTERNATE_BATTERY_TYPE, "AlternateRCMapping", OVERRIDE_DB);
     }).then((count) => {
         count && console.log(`Inserted ${count} records into AlternateRCMapping.`);
     }).then(() => {
@@ -49,10 +47,14 @@ function test() {
     console.log("Starting test...");
 }
 
-setInterval(updateDatabase, 1000); // Call updateDatabase every 10 seconds
+if (process.env.USE_SUPABASE === 'true') {
+    setInterval(updateDatabase, 1000); // Call updateDatabase every 10 seconds only if there is internet connection
+}
 
 startServer();
 
+// Data stream format => event: <event_type>\ndata: <data_as_json_string>\n\n
+// Keep only one connection open to a client at a time
 app.get("/data_stream", (req, res) => {
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
@@ -67,7 +69,7 @@ app.get("/data_stream", (req, res) => {
     });
 })
 
-app.get("/initial_data", async (req, res) => {
+app.get("/initial_power_data", async (req, res) => {
     try {
         const runId = await getCurrentRunId();
         const initialData = await populateInitalChartData(runId);
