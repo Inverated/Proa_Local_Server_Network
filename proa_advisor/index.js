@@ -17,7 +17,9 @@ const { add_client, get_clients, remove_client } = require("./handler/client_tra
 const { getCurrentRunId } = require("./lib/Kalman Filter/kalman_filter");
 const { populateInitalChartData } = require('./model/db');
 const { startServer } = require("./server");
+const { connectToWifi } = require("./handler/internet_connection/wifi_manager")
 const {  } = require("./handler/terminal_socket/ws");
+const { hasInternet } = require("./handler/database_update/connectivity");
 startServer();
 
 // Simple admin authentication for accessing dev panel as it is not a full-fledged web application. 
@@ -27,7 +29,8 @@ const users = [
 
 app.post("/admin_login", (req, res) => {
     const { username, password } = req.body;
-    const user = users.find(u => u.username === username && u.password === password);
+    const user = users.find(u => u.username === username.toString().trim() && u.password === password.toString().trim());
+
     if (user) {
         const token = jwt.sign({ username: user.username }, process.env.JWT_SECRET, { expiresIn: '1h' });
         res.status(200).json({ token });
@@ -77,6 +80,11 @@ app.get("/data_stream", (req, res) => {
     });
 })
 
+app.get("/test", (req, res) => {
+    startServer();
+    res.send("Server started");
+});
+
 app.get("/initial_power_data", async (req, res) => {
     try {
         const runId = await getCurrentRunId();
@@ -86,6 +94,14 @@ app.get("/initial_power_data", async (req, res) => {
         console.error("Error fetching initial data:", error);
         res.status(500).send("Error fetching initial data");
     }
+});
+
+app.get("/has_internet", (req, res) => {
+    hasInternet().then((internet) => {
+        res.json({ hasInternet: internet });
+    }).catch((error) => {
+        res.status(500).json({ hasInternet: false, error: "Error checking internet connectivity" });
+    });
 });
 
 app.get("/", (req, res) => {
@@ -114,7 +130,25 @@ app.get("/ncsi.txt", (req, res) => {
     res.redirect("/");
 });
 
+// ------------------- //
+// PROTECTED ROUTES
+// ------------------- //
+app.post("/connect_wifi", middlewareAuth, (req, res) => {
+    const { ssid, password } = req.body;
+    if (!ssid || !password) {
+        return res.status(400).json({ message: "SSID and password are required" });
+    }
+    const success = connectToWifi(ssid, password);
+    if (success) {
+        res.status(200).json({ message: "Connected to Wi-Fi successfully" });
+    } else {
+        res.status(500).json({ message: "Failed to connect to Wi-Fi" });
+    }
+});
+
+
 app.listen(port, "0.0.0.0", () => {
     console.log(`Listening on port ${port}`);
     console.log(`Access the application at http://localhost:${port}`);
 });
+

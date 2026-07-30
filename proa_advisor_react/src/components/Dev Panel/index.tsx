@@ -10,10 +10,12 @@ import Stack from '@mui/material/Stack';
 import Button from '@mui/material/Button';
 import TextField from '@mui/material/TextField'; '@mui/material/TextField';
 
+import { jwtDecode } from "jwt-decode";
+
+
 export default function DevPanel() {
     const [token, setToken] = useState(localStorage.getItem('token') || '');
 
-    
     const [selectedIndex, setSelectedIndex] = useState(0);
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
@@ -25,6 +27,23 @@ export default function DevPanel() {
             setToken(storedToken);
         }
     }, []);
+
+    function jwtExpired(token: string): boolean {
+        try {
+            const decoded: any = jwtDecode(token);
+            const currentTime = Date.now() / 1000;
+            return decoded.exp < currentTime;
+        } catch (e) {
+            return true;
+        }
+    }            
+
+    useEffect(() => {
+        if (token && jwtExpired(token)) {
+            localStorage.removeItem('token');
+            setToken('');
+        }
+    }, [selectedIndex, token]);
 
     const selectedTab = useMemo(() => settingsTabItems[selectedIndex], [selectedIndex]);
     const ActiveTabComponent = selectedTab?.component;

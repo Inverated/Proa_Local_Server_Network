@@ -26,6 +26,7 @@
     "dayjs": "^1.11.20",
     "echarts": "^6.1.0",
     "echarts-for-react": "^3.0.6",
+    "jwt-decode": "^4.0.0",
     "react": "^19.2.6",
     "react-battery-gauge": "^1.0.7",
     "react-dom": "^19.2.6"
