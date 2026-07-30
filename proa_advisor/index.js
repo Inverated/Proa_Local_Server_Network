@@ -17,7 +17,7 @@ const { add_client, get_clients, remove_client } = require("./handler/client_tra
 const { getCurrentRunId } = require("./lib/Kalman Filter/kalman_filter");
 const { populateInitalChartData } = require('./model/db');
 const { startServer } = require("./server");
- 
+const {  } = require("./handler/terminal_socket/ws");
 startServer();
 
 // Simple admin authentication for accessing dev panel as it is not a full-fledged web application. 
