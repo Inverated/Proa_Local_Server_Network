@@ -1,54 +1,65 @@
 const express = require("express");
+const jwt = require("jsonwebtoken");
+const bodyParser = require("body-parser");
+
 const path = require("path");
 const app = express();
 const port = 4000;
 const cors = require("cors");
-const dotenv = require("dotenv");
-dotenv.config();
 
 app.use(cors());
 app.use(express.json());
+app.use(bodyParser.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-const { startDB, insertBatteryState } = require('./model/power_management_models');
-const { populateInitalChartData } = require('./model/db');
-const { run_test } = require("./lib/Kalman Filter/ekf_test")
-const { getCurrentRunId, setAlternateBatteryType, setMainBatteryType } = require("./lib/Kalman Filter/kalman_filter");
-const { startSerialReader } = require('./handler/serial_reader/serialReader');
 const { add_client, get_clients, remove_client } = require("./handler/client_transmission");
-const { updateDatabase } = require("./handler/database_update/database_update");
-
-function startServer() {
-    const OVERRIDE_DB = process.env.OVERRIDE_DB === 'true'; // Set to true to override existing data in RC mapping tables
-    startDB().then(() => {
-        //return insertBatteryState(battery_type = "LiNMC", tableName = "MainRCMapping", override = OVERRIDE_DB);
-        setMainBatteryType(process.env.MAIN_BATTERY_TYPE);
-        return insertBatteryState(battery_type = process.env.MAIN_BATTERY_TYPE  , tableName = "MainRCMapping", override = OVERRIDE_DB);
-    }).then((count) => {
-        count && console.log(`Inserted ${count} records into MainRCMapping.`);
-    }).then(() => {
-        //return insertBatteryState("LiFePO4", "AlternateRCMapping", OVERRIDE_DB);
-        setAlternateBatteryType(process.env.ALTERNATE_BATTERY_TYPE);
-        return insertBatteryState(process.env.ALTERNATE_BATTERY_TYPE, "AlternateRCMapping", OVERRIDE_DB);
-    }).then((count) => {
-        count && console.log(`Inserted ${count} records into AlternateRCMapping.`);
-    }).then(() => {
-        console.log("\n//====================================================//\nDatabase setup complete.\n//====================================================//\n");
-        if (process.env.IS_TEST_RUN === 'true') {
-            run_test();
-        } else {
-            startSerialReader();
-        }
-    });
-}
-
-
-if (process.env.USE_SUPABASE === 'true') {
-    setInterval(updateDatabase, 1000); // Call updateDatabase every 10 seconds only if there is internet connection
-}
-
+const { getCurrentRunId } = require("./lib/Kalman Filter/kalman_filter");
+const { populateInitalChartData } = require('./model/db');
+const { startServer } = require("./server");
+ 
 startServer();
+
+// Simple admin authentication for accessing dev panel as it is not a full-fledged web application. 
+const users = [
+    { username: "admin", password: process.env.DEFAULT_ADMIN_PASSWORD }
+]
+
+app.post("/admin_login", (req, res) => {
+    const { username, password } = req.body;
+    const user = users.find(u => u.username === username && u.password === password);
+    if (user) {
+        const token = jwt.sign({ username: user.username }, process.env.JWT_SECRET, { expiresIn: '1h' });
+        res.status(200).json({ token });
+    } else {
+        res.status(401).json({ message: "Invalid credentials" });
+    }
+});
+
+const middlewareAuth = (req, res, next) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+        return res.status(401).json({ message: "No token provided" });
+    }
+
+    const token = authHeader.split(" ")[1];
+    if (!token) {
+        return res.status(401).json({ message: "No token provided" });
+    }
+
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        req.user = decoded;
+        next();
+    } catch (err) {
+        return res.status(401).json({ message: "Invalid token" });
+    }
+};
+
+
+// ------------------- //
+// PUBLIC ROUTES
+// ------------------- //
 
 // Data stream format => event: <event_type>\ndata: <data_as_json_string>\n\n
 // Keep only one connection open to a client at a time

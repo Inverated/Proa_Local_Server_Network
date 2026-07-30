@@ -52,7 +52,9 @@ function write_to_client(client, event_type, data) {
 function write_to_clients(event_type, data) {
     // Convert an object to a string and send it to all clients
     const message = `event: ${event_type}\ndata: ${JSON.stringify(data)}\n\n`;
-    console.log(`Writing to ${clients.size} clients`);
+    if (process.env.LOG_CLIENT_MESSAGES === 'true') {
+        console.log(`Writing to ${clients.size} clients`);
+    }
     clients.forEach(client => {
         client.write(message);
     });

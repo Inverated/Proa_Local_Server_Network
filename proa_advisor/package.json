@@ -23,6 +23,7 @@
     "dotenv": "^17.4.2",
     "ejs": "^5.0.1",
     "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
     "kalman-filter": "^2.3.0",
     "node-pty": "^1.1.0",
     "nodemon": "^3.1.14",

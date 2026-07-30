@@ -41,6 +41,7 @@ export default function Dashboard(props: { disableCustomTheme?: boolean }) {
     const [powerData, setPowerData] = useState<PowerData | null>(null);
     const [messages, setMessages] = useState<MessageData[]>([]);  // For floating messages
     const [strainData, setStrainData] = useState<null>(null);  // To be implemented
+
     useEffect(() => {
         let eventSource: EventSource | null = null;
         eventSource = new EventSource("/data_stream");
@@ -108,6 +109,7 @@ export default function Dashboard(props: { disableCustomTheme?: boolean }) {
                         }}
 
                     >
+
                         <Header currentTab=
                             {mainContent === -1 ? 'Template Layout' :
                                 mainContent === 0 ? 'Overview' :

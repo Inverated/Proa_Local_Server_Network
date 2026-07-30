@@ -317,6 +317,9 @@ async function updateFilter(time_diff_us, mppt_out, load_in, batt1_net, batt2_ne
             },
         }).init();
         console.log(`Initialized KCL Corrector with noise: ${kcl_corrector.noise.kcl.toExponential(2)}A^2`);
+        console.log("====================================================");
+        console.log("Started Kalman filter for power management");
+        console.log("====================================================\n");
     }
 
     // Tuning KCL process noise based on active channels
