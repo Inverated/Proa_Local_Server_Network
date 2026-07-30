@@ -58,7 +58,6 @@ export default function DevPanel() {
             })
             .then((response) => response.json())
             .then((data) => {
-                console.log(data);
                 if (data.token) {
                     localStorage.setItem('token', data.token);
                     setToken(data.token);
