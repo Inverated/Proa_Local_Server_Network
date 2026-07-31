@@ -20,7 +20,8 @@ const { startServer } = require("./server");
 const { connectToWifi } = require("./handler/internet_connection/wifi_manager")
 const {  } = require("./handler/terminal_socket/ws");
 const { hasInternet } = require("./handler/database_update/connectivity");
-startServer();
+const { switchMode } = require("./handler/switch_env_mode");
+startServer(); 
 
 // Simple admin authentication for accessing dev panel as it is not a full-fledged web application. 
 const users = [
@@ -144,6 +145,18 @@ app.post("/connect_wifi", middlewareAuth, (req, res) => {
     } else {
         res.status(500).json({ message: "Failed to connect to Wi-Fi" });
     }
+});
+
+app.get("/get_curr_mode", middlewareAuth, (req, res) => {
+    const mode = process.env.IS_TEST_RUN === "true" ? "test" : "normal";
+    res.status(200).json({ mode });
+});
+
+app.post("/switch_mode", middlewareAuth, (req, res) => {
+    const { mode } = req.body;
+    switchMode();
+    // restartServer();
+    res.status(200).json({ message: `Switched mode to ${process.env.IS_TEST_RUN === "true" ? "test" : "normal"}` });
 });
 
 
