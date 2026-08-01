@@ -1,3 +1,7 @@
+// Modify how the node server starts but using a child process instead of directly starting
+// Can include an on close with a signal to indicate if restart is required
+
+
 const express = require("express");
 const jwt = require("jsonwebtoken");
 const bodyParser = require("body-parser");
@@ -22,6 +26,7 @@ const {  } = require("./handler/terminal_socket/ws");
 const { hasInternet } = require("./handler/database_update/connectivity");
 const { switchMode } = require("./handler/switch_env_mode");
 startServer(); 
+
 
 // Simple admin authentication for accessing dev panel as it is not a full-fledged web application. 
 const users = [
