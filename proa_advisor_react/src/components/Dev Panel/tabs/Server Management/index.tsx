@@ -89,8 +89,25 @@ export default function ServerManagementTab() {
         }
         window.setTimeout(() => {
             loadCurrentMode();
-            console.log('Reloading current mode after switching...');
         }, TIMEOUT_DURATION);
+    }
+    
+    async function handleUpdateAndRestartServer() {
+        const confirmed = window.confirm('Update repository and restart server now? Active connections will be interrupted during restart only.');
+        if (!confirmed) {
+            return;
+        }
+
+        setStatusMessage('');
+        try {
+            const data = await fetchWithFallback('/update_repo');
+            setStatusKind('success');
+            setStatusMessage(data.message || 'Repository updated and server restarting...');
+            handleRestartServer();
+        } catch (error) {
+            setStatusKind('error');
+            setStatusMessage('Failed to update repository.');
+        }
     }
 
     async function handleRestartServer() {
@@ -147,6 +164,9 @@ export default function ServerManagementTab() {
             <Stack spacing={2} sx={{ width: '70%' }}>
                 <Button variant="contained" onClick={handleSwitchMode}>
                     {currentMode === 'test' ? 'Switch to Normal Mode' : 'Switch to Test Mode'}
+                </Button>
+                <Button variant="contained" onClick={handleUpdateAndRestartServer}>
+                    Update Repository and Restart Server
                 </Button>
                 <Button variant="contained" onClick={handleRestartServer}>
                     Restart Server

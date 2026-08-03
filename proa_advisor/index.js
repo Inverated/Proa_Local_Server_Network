@@ -157,7 +157,6 @@ app.get("/get_curr_mode", middlewareAuth, (req, res) => {
 
 app.get("/set_mode_and_restart", middlewareAuth, (req, res) => {
     const { mode } = req.query;
-    console.log(`Received request to switch mode to: ${mode}`);
     switchMode(mode);
     if (process.send) {
         closeAllConnections();
@@ -189,11 +188,13 @@ app.get("/stop_server", middlewareAuth, (req, res) => {
 });
 
 app.get("/update_repo", middlewareAuth, (req, res) => {
-    updateRepo().then(() => {
-        console.log("Repository updated successfully.");
-        res.status(200).json({ message: "Repository updated successfully." });
+    updateRepo().then((update_result) => {
+        if (update_result.updated) {
+            res.status(200).json({ message: update_result.message });
+        } else {
+            res.status(500).json({ message: update_result.message });
+        }
     }).catch((error) => {
-        console.error("Error updating repository:", error);
         res.status(500).json({ message: "Error updating repository", error: error.message });
     });
 });

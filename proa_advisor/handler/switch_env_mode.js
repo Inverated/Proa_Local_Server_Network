@@ -15,7 +15,6 @@ function switchMode(mode) {
     require("fs").writeFileSync(envFilePath, newEnvContent);
     // Update the process.env variable
     process.env.IS_TEST_RUN = newMode.toString();
-    console.log(`Switched mode to ${newMode ? "test" : "normal"}`);
 }
 
 module.exports = {

@@ -11,12 +11,11 @@ const git = simpleGit({
     // Print Git output in real time
     stdout.pipe(process.stdout);
     stderr.pipe(process.stderr);
-});;
+});
 
 async function updateRepo() {
     if (!await hasInternet()) {
-        console.log("No internet connection. Skipping repository update.");
-        return false;
+        return { updated: false, message: "No internet connection. Skipping repository update." };
     }
     try {
         await git.fetch('origin', 'main');
@@ -26,11 +25,9 @@ async function updateRepo() {
             await git.reset(['--hard', 'origin/main']);
             await git.pull('origin', 'main');
         }
-        console.log("Repository updated successfully.");
-        return true;
+        return { updated: true, message: "Repository updated successfully." };
     } catch (error) {
-        console.error("Error updating repository:", error);
-        return false;
+        return { updated: false, message: "Error updating repository." };
     }
 }
 
