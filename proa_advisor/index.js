@@ -27,7 +27,7 @@ const {  } = require("./handler/terminal_socket/ws");
 const { hasInternet } = require("./handler/database_update/connectivity");
 const { switchMode } = require("./handler/switch_env_mode");
 const { closeAllConnections } = require("./handler/terminal_socket/ws");
-const {  } = require("./model/db");
+const { updateRepo } = require("./handler/repository/simple_git");
 startBackend(); 
 
 
@@ -186,6 +186,16 @@ app.get("/stop_server", middlewareAuth, (req, res) => {
         });
     }
     res.status(200).json({ message: "Server is stopping..." });
+});
+
+app.get("/update_repo", middlewareAuth, (req, res) => {
+    updateRepo().then(() => {
+        console.log("Repository updated successfully.");
+        res.status(200).json({ message: "Repository updated successfully." });
+    }).catch((error) => {
+        console.error("Error updating repository:", error);
+        res.status(500).json({ message: "Error updating repository", error: error.message });
+    });
 });
 
 app.listen(port, "0.0.0.0", () => {
