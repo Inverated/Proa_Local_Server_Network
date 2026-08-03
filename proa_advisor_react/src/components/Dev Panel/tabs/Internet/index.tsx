@@ -10,7 +10,6 @@ export default function InternetConnectivityTab() {
     const [password, setPassword] = useState('');
 
     useEffect(() => {
-
         checkInternetConnectivity();
     }, []);
 

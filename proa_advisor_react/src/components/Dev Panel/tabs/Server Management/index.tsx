@@ -1,18 +1,165 @@
+import { useEffect, useState } from 'react';
+import Stack from '@mui/material/Stack';
+import Button from '@mui/material/Button';
 import './styles.css';
 
-// Controls for server
-// 1. Switch to test mode (Consider how to select diff test data to use)
-// 2. Restart server (if update is avaliable & downloaded)
-//    Use git pull on server to check for update, pull if available
-//    cant check if current running server is the pulled version. Either add a version check or restart immediately after pulling
-//    remove ubuntu script to auto update to just manually do it over dev panel
-//
+type ServerMode = 'test' | 'normal';
+type StatusKind = 'success' | 'error' | 'info';
+const TIMEOUT_DURATION = 2000; // Duration in milliseconds for status message to disappear
+const LOCALHOST_API_BASE_URL = 'http://localhost:4000';
+
+function getAuthHeaders() {
+    const headers = new Headers();
+    const token = localStorage.getItem('token');
+    if (token) {
+        headers.set('Authorization', 'Bearer ' + token);
+    }
+    return headers;
+}
+
+async function fetchWithFallback(route: string) {
+    const requestInit: RequestInit = {
+        method: 'GET',
+        headers: getAuthHeaders(),
+    };
+
+    try {
+        const response = await fetch(route, requestInit);
+        return await response.json(); // Attempt to parse JSON to check if the response is valid
+    } catch (error) {
+        const response = await fetch(LOCALHOST_API_BASE_URL + route, requestInit);
+        try {
+            return await response.json(); // Attempt to parse JSON to check if the response is valid
+        } catch (error) {
+            throw new Error('Failed to fetch from both primary and fallback routes');
+        }
+    }
+}
 
 export default function ServerManagementTab() {
+    const [currentMode, setCurrentMode] = useState<ServerMode | null>(null);
+    const [isLoadingMode, setIsLoadingMode] = useState(true);
+    const [statusMessage, setStatusMessage] = useState('');
+    const [statusKind, setStatusKind] = useState<StatusKind>('info');
+
+    useEffect(() => {
+        loadCurrentMode();
+    }, []);
+
+    useEffect(() => {
+        if (!statusMessage) {
+            return;
+        }
+
+        const timeoutId = window.setTimeout(() => {
+            setStatusMessage('');
+        }, 4000);
+
+        return () => window.clearTimeout(timeoutId);
+    }, [statusMessage]);
+
+    async function loadCurrentMode() {
+        setIsLoadingMode(true);
+        try {
+            const data = await fetchWithFallback('/get_curr_mode');
+            if (data.mode === 'test' || data.mode === 'normal') {
+                setCurrentMode(data.mode);
+            } else {
+                throw new Error('Invalid mode response');
+            }
+        } catch (error) {
+            setCurrentMode(null);
+            setStatusKind('error');
+            setStatusMessage('Failed to load current server mode.');
+        } finally {
+            setIsLoadingMode(false);
+        }
+    }
+
+    async function handleSwitchMode() {
+        setStatusMessage('');
+        try {
+            const newMode = currentMode === 'test' ? 'normal' : 'test';
+            const response = await fetchWithFallback(`/set_mode_and_restart?mode=${newMode}`);
+            const data = await response.json();
+            setStatusKind('success');
+            setStatusMessage(data.message || 'Server mode switched.');
+        } catch (error) {
+            // Don't set status message here, as the server might be restarting and not responding
+        }
+        window.setTimeout(() => {
+            loadCurrentMode();
+            console.log('Reloading current mode after switching...');
+        }, TIMEOUT_DURATION);
+    }
+
+    async function handleRestartServer() {
+        const confirmed = window.confirm('Restart server now? Active connections will be interrupted.');
+        if (!confirmed) {
+            return;
+        }
+
+        setStatusMessage('');
+        try {
+            const data = await fetchWithFallback('/restart_server');
+            setStatusKind('info');
+            setStatusMessage(data.message || 'Server is restarting...');
+        } catch (error) {
+            setStatusKind('info');
+            setStatusMessage('Restart command sent. Connection may close while server restarts.');
+        }
+    }
+
+    async function handleStopServer() {
+        const confirmed = window.confirm(
+            'Stop server now?\n\nTo turn it back on, you need to restart the device.'
+        );
+        if (!confirmed) {
+            return;
+        }
+
+        setStatusMessage('');
+        try {
+            const data = await fetchWithFallback('/stop_server');
+            if (!data) {
+                throw new Error('Failed to stop server');
+            }
+            setStatusKind('info');
+            setStatusMessage(data.message || 'Server is stopping...');
+        } catch (error) {
+            setStatusKind('info');
+            setStatusMessage('Stop command sent. To turn it back on, restart the device.');
+        }
+    }
+
     return (
-        <section className="settings-tab-panel">
-            <h3>Server Management</h3>
-            <p>This is a dummy Server Management tab. Add server-specific settings controls here.</p>
+        <section className="server-management-tab">
+            <p>
+                Current mode:{' '}
+                {isLoadingMode
+                    ? 'Loading...'
+                    : currentMode === 'test'
+                        ? 'Test'
+                        : currentMode === 'normal'
+                            ? 'Normal'
+                            : 'Unavailable'}
+            </p>
+            <Stack spacing={2} sx={{ width: '70%' }}>
+                <Button variant="contained" onClick={handleSwitchMode}>
+                    {currentMode === 'test' ? 'Switch to Normal Mode' : 'Switch to Test Mode'}
+                </Button>
+                <Button variant="contained" onClick={handleRestartServer}>
+                    Restart Server
+                </Button>
+                <Button color="error" variant="contained" onClick={handleStopServer}>
+                    Stop Server
+                </Button>
+            </Stack>
+            {statusMessage && (
+                <p className={`server-management-status ${statusKind}`}>
+                    {statusMessage}
+                </p>
+            )}
         </section>
     );
 }

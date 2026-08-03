@@ -21,14 +21,17 @@ function getShell() {
 }
 
 const wss = new WebSocket.Server({
-    port: 3001
+    port: 3001,
 });
 
 wss.on("connection", (ws, req) => {
     // localhost:3001?token=YOUR_JWT
     const query = new URL(req.url, `http://${req.headers.host}`).searchParams;
     try {
-        const decoded = jwt.verify(query.toString().slice(6), process.env.JWT_SECRET);
+        const decoded = jwt.verify(
+            query.toString().slice(6),
+            process.env.JWT_SECRET,
+        );
         ws.user = decoded;
     } catch (err) {
         ws.close(1008, "Invalid token");
@@ -40,7 +43,7 @@ wss.on("connection", (ws, req) => {
         cols: 80,
         rows: 24,
         cwd: process.env.HOME,
-        env: process.env
+        env: process.env,
     });
 
     ptyProcess.onData((data) => {
@@ -54,7 +57,16 @@ wss.on("connection", (ws, req) => {
     ws.on("close", () => {
         ptyProcess.kill();
     });
-
 });
 
+function closeAllConnections() {
+    wss.clients.forEach((client) => {
+        client.close(1001, "Server shutting down");
+    });
+}
+
 console.log("WebSocket server running on ws://localhost:3001");
+
+module.exports = {
+    closeAllConnections,
+};

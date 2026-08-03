@@ -2,9 +2,9 @@
 const dotenv = require("dotenv");
 dotenv.config();
 
-function switchMode() {
+function switchMode(mode) {
     const currentMode = process.env.IS_TEST_RUN === "true";
-    const newMode = !currentMode;
+    const newMode = mode === "test";
     // Update the .env file
     const envFilePath = ".env";
     const envConfig = dotenv.parse(require("fs").readFileSync(envFilePath));

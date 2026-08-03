@@ -8,7 +8,7 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "nodemon index.js",
+    "start": "node server_manager.js",
     "build:react": "cd ../proa_advisor_react && yarn && yarn run build",
     "copy:react": "node scripts/copyReactBuild.js",
     "rebuild": "yarn && yarn run build:react && yarn run copy:react",

@@ -11,7 +11,7 @@ const { updateDatabase } = require("./handler/database_update/database_update");
 
 const OVERRIDE_DB = process.env.OVERRIDE_DB === 'true';
 
-function startServer() {
+function startBackend() {
     useSupabase();
 
     startDB().then(() => {
@@ -43,5 +43,5 @@ function useSupabase() {
 }
 
 module.exports = {
-    startServer
+    startBackend
 }

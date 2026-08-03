@@ -17,20 +17,23 @@ app.use(bodyParser.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
+const process = require("node:process");
 const { add_client, get_clients, remove_client } = require("./handler/client_transmission");
 const { getCurrentRunId } = require("./lib/Kalman Filter/kalman_filter");
 const { populateInitalChartData } = require('./model/db');
-const { startServer } = require("./server");
+const { startBackend } = require("./server");
 const { connectToWifi } = require("./handler/internet_connection/wifi_manager")
 const {  } = require("./handler/terminal_socket/ws");
 const { hasInternet } = require("./handler/database_update/connectivity");
 const { switchMode } = require("./handler/switch_env_mode");
-startServer(); 
+const { closeAllConnections } = require("./handler/terminal_socket/ws");
+const {  } = require("./model/db");
+startBackend(); 
 
 
 // Simple admin authentication for accessing dev panel as it is not a full-fledged web application. 
 const users = [
-    { username: "admin", password: process.env.DEFAULT_ADMIN_PASSWORD }
+    { username: process.env.DEFAULT_ADMIN_USERNAME, password: process.env.DEFAULT_ADMIN_PASSWORD }
 ]
 
 app.post("/admin_login", (req, res) => {
@@ -85,11 +88,6 @@ app.get("/data_stream", (req, res) => {
         remove_client(res);
     });
 })
-
-app.get("/test", (req, res) => {
-    startServer();
-    res.send("Server started");
-});
 
 app.get("/initial_power_data", async (req, res) => {
     try {
@@ -154,16 +152,41 @@ app.post("/connect_wifi", middlewareAuth, (req, res) => {
 
 app.get("/get_curr_mode", middlewareAuth, (req, res) => {
     const mode = process.env.IS_TEST_RUN === "true" ? "test" : "normal";
-    res.status(200).json({ mode });
+    res.status(200).json({ "mode": mode });
 });
 
-app.post("/switch_mode", middlewareAuth, (req, res) => {
-    const { mode } = req.body;
-    switchMode();
-    // restartServer();
+app.get("/set_mode_and_restart", middlewareAuth, (req, res) => {
+    const { mode } = req.query;
+    console.log(`Received request to switch mode to: ${mode}`);
+    switchMode(mode);
+    if (process.send) {
+        closeAllConnections();
+        process.send({
+            action: "restart"
+        });
+    }
     res.status(200).json({ message: `Switched mode to ${process.env.IS_TEST_RUN === "true" ? "test" : "normal"}` });
 });
 
+app.get("/restart_server", middlewareAuth, (req, res) => {
+    if (process.send) {
+        closeAllConnections();
+        process.send({
+            action: "restart"
+        });
+    }
+    res.status(200).json({ message: "Server is restarting..." });
+});
+
+app.get("/stop_server", middlewareAuth, (req, res) => {
+    if (process.send) {
+        closeAllConnections();
+        process.send({
+            action: "stop"
+        });
+    }
+    res.status(200).json({ message: "Server is stopping..." });
+});
 
 app.listen(port, "0.0.0.0", () => {
     console.log(`Listening on port ${port}`);
