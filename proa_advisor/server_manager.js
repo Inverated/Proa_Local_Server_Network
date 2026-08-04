@@ -43,6 +43,18 @@ async function startServer() {
         } else if (message.action === "stop") {
             isRestarting = false;
             child.kill("SIGTERM");
+            // sudo shutdown now
+            const shutdown = spawn("sudo", ["shutdown", "now"], {
+                stdio: "inherit",
+                shell: true,
+                cwd: rootDir
+            });
+            shutdown.on("close", (code) => {
+                if (code !== 0) {
+                    console.error(`Shutdown command failed with exit code ${code}`);
+                }            
+            });
+            
         }
     });
 
