@@ -3,7 +3,7 @@ const { supabase } = require("./supabase");
 const { getDB } = require("../../model/power_management_models")
 const os = require("os");
 
-const PAGE_SIZE = 500;
+const PAGE_SIZE = 50;
 let updating = false;
 
 async function updateDatabase() {
@@ -32,10 +32,13 @@ async function updateDatabase() {
 
             rows.map(row => {
                 row.hostname = hostname;
+                row.time_diff = Math.trunc(row.time_diff);
             });
             const { data: insertData, error: insertError } = await supabase.from("Power Management Sensor Data").upsert(rows);
             if (insertError) {
                 console.error("Error inserting data into supabase:", insertError);
+                console.error("Failed rows:", rows);
+                console.log(insertData);
                 break;
             } 
             //console.log(`Inserted ${rows.length} records into supabase. Total inserted: ${offset + rows.length}`);

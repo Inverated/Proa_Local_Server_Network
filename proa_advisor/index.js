@@ -28,6 +28,7 @@ const { hasInternet } = require("./handler/database_update/connectivity");
 const { switchMode } = require("./handler/switch_env_mode");
 const { closeAllConnections } = require("./handler/terminal_socket/ws");
 const { updateRepo } = require("./handler/repository/simple_git");
+const { streamSOCSensorCsvByRun, normalizeRowId, normalizeRunId, getSOCSensorRunSummaries, DownloadInProgressError } = require("./handler/database_download");
 startBackend(); 
 
 
@@ -199,8 +200,58 @@ app.get("/update_repo", middlewareAuth, (req, res) => {
     });
 });
 
+app.get("/download_socsensor_current_run", middlewareAuth, async (req, res) => {
+    try {
+        const rowId = normalizeRowId(req.query.rowid ?? req.query.start_rowid);
+        const runId = await getCurrentRunId();
+        await streamSOCSensorCsvByRun(req, res, runId, rowId);
+    } catch (error) {
+        if (error instanceof DownloadInProgressError) {
+            return res.status(error.statusCode).json({ message: error.message });
+        }
+        if (error?.message === "rowid must be a non-negative integer.") {
+            return res.status(400).json({ message: error.message });
+        }
+        if (!res.headersSent) {
+            return res.status(500).json({ message: "Failed to download SOCSensor data." });
+        }
+        if (!res.writableEnded) {
+            res.end();
+        }
+    }
+});
+
+app.get("/socsensor_runs", middlewareAuth, async (req, res) => {
+    try {
+        const runs = await getSOCSensorRunSummaries();
+        res.status(200).json({ runs });
+    } catch (error) {
+        res.status(500).json({ message: "Failed to load SOCSensor run list." });
+    }
+});
+
+app.get("/download_socsensor", middlewareAuth, async (req, res) => {
+    try {
+        const runId = normalizeRunId(req.query.run_id);
+        const rowId = normalizeRowId(req.query.rowid ?? req.query.start_rowid);
+        await streamSOCSensorCsvByRun(req, res, runId, rowId);
+    } catch (error) {
+        if (error instanceof DownloadInProgressError) {
+            return res.status(error.statusCode).json({ message: error.message });
+        }
+        if (error?.message === "rowid must be a non-negative integer." || error?.message === "run_id must be a positive integer.") {
+            return res.status(400).json({ message: error.message });
+        }
+        if (!res.headersSent) {
+            return res.status(500).json({ message: "Failed to download SOCSensor data." });
+        }
+        if (!res.writableEnded) {
+            res.end();
+        }
+    }
+});
+
 app.listen(port, "0.0.0.0", () => {
     console.log(`Listening on port ${port}`);
     console.log(`Access the application at http://localhost:${port}`);
 });
-

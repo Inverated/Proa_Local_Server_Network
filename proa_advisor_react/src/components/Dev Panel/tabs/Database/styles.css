@@ -1,0 +1,46 @@
+.database-management-tab {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    align-items: center;
+    text-align: center;
+}
+
+.database-management-tab h3 {
+    margin: 0;
+}
+
+.database-management-tab p {
+    margin: 0;
+}
+
+.database-run-selector {
+    width: 70%;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    align-items: flex-start;
+}
+
+.database-run-selector select {
+    width: 100%;
+    max-width: 100%;
+    min-height: 36px;
+}
+
+.database-management-status {
+    max-width: 70%;
+    word-break: break-word;
+}
+
+.database-management-status.success {
+    color: #2e7d32;
+}
+
+.database-management-status.error {
+    color: #d32f2f;
+}
+
+.database-management-status.info {
+    color: #1565c0;
+}

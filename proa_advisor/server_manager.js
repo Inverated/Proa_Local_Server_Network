@@ -6,7 +6,7 @@ const express = require("express");
 const { fork } = require("child_process");
 
 let child = null;
-let isRestarting = true;
+let isRestarting = false;
 
 function startServer() {
     child = fork("./index.js");

@@ -164,7 +164,7 @@ async function onNewSample(sample, force_log = false, is_test = false) {
 
         SAVE_ADC_READINGS_TO_DB && data_array.push({
             run_id: current_run_id,
-            time_diff: time_diff_us,
+            time_diff: Math.trunc(time_diff_us),
             adcReading0: a0,
             adcReading1: a1,
             adcReading2: a2,

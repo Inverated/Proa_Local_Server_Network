@@ -24,6 +24,11 @@ async function startDB() {
         console.error("Error opening database:", err.message);
         reject(err);
       } else {
+        db.exec("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;", (pragmaErr) => {
+          if (pragmaErr) {
+            console.error("Error setting SQLite pragmas:", pragmaErr.message);
+          }
+        });
         new Promise((res, rej) => {
           for (let attempt = 0; attempt < 10; attempt++) {
             initializeDatabase();
@@ -35,7 +40,7 @@ async function startDB() {
                   `Database initialization attempt ${attempt + 1} failed. Retrying...`,
                 );
               }
-            }, 500);
+            }, 1000);
           }
         }).then(() => {
           console.log("Database initialized successfully.");
@@ -79,6 +84,17 @@ function initializeDatabase() {
             return;
           }
           tables_initialized.SOCSensor = true;
+        },
+      );
+      db.run(
+        `
+            CREATE INDEX IF NOT EXISTS idx_socsensor_run_id_id
+            ON SOCSensor (run_id, id)
+        `,
+        (err) => {
+          if (err) {
+            console.error("Error creating SOCSensor run/id index:", err.message);
+          }
         },
       );
 
