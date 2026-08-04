@@ -4,6 +4,15 @@ import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Button from '@mui/material/Button';
 
+function getAuthHeaders() {
+    const headers = new Headers();
+    const token = localStorage.getItem('token');
+    if (token) {
+        headers.set('Authorization', 'Bearer ' + token);
+    }
+    return headers;
+}
+
 export default function InternetConnectivityTab() {
     const [isConnected, setIsConnected] = useState<boolean | null>(null);
     const [ssid, setSsid] = useState('');
@@ -34,9 +43,7 @@ export default function InternetConnectivityTab() {
         event.preventDefault();
         fetch('/connect_wifi', {
             method: 'POST',
-            headers: {
-                "Content-Type": "application/json",
-            },
+            headers: getAuthHeaders(),
             body: JSON.stringify({
                 ssid: ssid,
                 password: password,
