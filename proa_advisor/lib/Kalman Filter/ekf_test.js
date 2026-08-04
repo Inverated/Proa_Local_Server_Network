@@ -79,12 +79,22 @@ async function run_test() {
     });
     
     let user_input = -1;
-    while (user_input < 1 || user_input > folders.length) {
-        user_input = await new Promise((resolve) => {
-            rl.question(`Press enter the number 1-${folders.length}: `, (answer) => {
-                resolve(parseInt(answer) || -1); // parseInt will return NaN if no number found (left of input string)
-            });
-        });
+    const timeout = 5000; // 5 seconds
+
+    try {
+        user_input = await Promise.race([
+            new Promise((resolve) => {
+                rl.question(`Enter a number (1-${folders.length}): `, (answer) => {
+                    resolve(parseInt(answer, 10) || -1);
+                });
+            }),
+            new Promise((_, reject) => {
+                setTimeout(() => reject(new Error("Timed out")), timeout);
+            })
+        ]);
+    } catch (err) {
+        console.warn("\nNo input received within timeout. Defaulting to first folder.");
+        user_input = folders.length > 0 ? 1 : -1; // Default to first folder if timeout occurs
     }
     rl.close();
 
