@@ -46,7 +46,7 @@ async function updateDatabase() {
         }
 
     } else {
-        console.error("No internet connection. Database update skipped.");
+        //console.error("No internet connection. Database update skipped.");
     }
     updating = false;
 }

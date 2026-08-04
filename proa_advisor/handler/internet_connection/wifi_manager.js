@@ -1,23 +1,43 @@
-const { exec } = require('child_process');
+const { spawn } = require('child_process');
 const os = require('os');
 const dev = "wlan1";
 
 function connectToWifi(ssid, password) {
-    
-    let command = `nmcli dev wifi connect "${ssid}" password "${password}" ifname ${dev}`;
     if (os.platform() !== 'linux') {
         return false; // Only support Linux for now
     }
-    exec(command, (error, stdout, stderr) => {
-        if (error) {
-            console.error(`Error connecting to Wi-Fi: ${error.message}`);
-            return false;
+    
+    const nmcli = spawn("nmcli", [
+        "device",
+        "wifi",
+        "connect",
+        ssid,
+        "password",
+        password,
+        "ifname",
+        dev,
+    ]);
+
+    nmcli.stdout.on("data", (data) => {
+        console.log("nmcli:", data.toString());
+    });
+
+    nmcli.stderr.on("data", (data) => {
+        console.error("nmcli error:", data.toString());
+    });
+
+    nmcli.on("close", (code) => {
+        console.log("nmcli exited with code:", code);
+
+        if (code === 0) {
+            console.log("Wi-Fi connected successfully");
+        } else {
+            console.log("Failed to connect");
         }
-        if (stderr) {
-            console.error(`Error: ${stderr}`);
-            return false;
-        }
-       return true;
+    });
+
+    nmcli.on("error", (err) => {
+        console.error("Failed to start nmcli:", err);
     });
 }
 

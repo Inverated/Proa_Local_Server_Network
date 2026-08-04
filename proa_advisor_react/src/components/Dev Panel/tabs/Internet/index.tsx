@@ -34,6 +34,9 @@ export default function InternetConnectivityTab() {
         event.preventDefault();
         fetch('/connect_wifi', {
             method: 'POST',
+            headers: {
+                "Content-Type": "application/json",
+            },
             body: JSON.stringify({
                 ssid: ssid,
                 password: password,

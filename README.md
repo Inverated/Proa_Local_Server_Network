@@ -61,7 +61,25 @@ If ssh does not work, you may need to connect the Pi to an external screen and k
    ```
 3. Note: boot time will still be around 20 seconds.
 
-### 2.4 Download Required Packages
+### 2.4 Verify Network Connectivity (Before Upgrading Packages)
+ 
+`apt full-upgrade` requires a working internet connection — check this first if you hit connection errors.
+ 
+1. Check if Wi-Fi is scanning networks:
+```bash
+   sudo iwlist wlan0 scan | grep ESSID
+```
+2. If nothing comes back (Wi-Fi is down), bring it back up:
+```bash
+   sudo rfkill unblock wifi
+   sudo ip link set wlan0 up
+   sudo nmcli radio wifi on
+   sudo systemctl restart wpa_supplicant
+   sudo systemctl restart NetworkManager
+```
+3. Re-run the scan command from step 1 to confirm networks now appear, then proceed.
+
+### 2.5 Download Required Packages
 
 1. Update and install system packages:
    ```bash
@@ -77,7 +95,7 @@ If ssh does not work, you may need to connect the Pi to an external screen and k
    nvm use node
    ```
 
-### 2.5 Set Up the Git Repo
+### 2.6 Set Up the Git Repo
 
 1. Create a directory and clone the repo:
    ```bash
@@ -90,18 +108,14 @@ If ssh does not work, you may need to connect the Pi to an external screen and k
    ```
 2. Force-stop the process once the initial build completes.
 
-### 2.6 Set Up the Network (Wi-Fi Access Point)
+### 2.7 Set Up the Network (Wi-Fi Access Point)
 
-1. Get the Pi's IP address:
-   ```bash
-   hostname -I
-   ```
-2. Stop the AP-related services before configuring them:
+1. Stop the AP-related services before configuring them:
    ```bash
    sudo systemctl stop hostapd
    sudo systemctl stop dnsmasq
    ```
-3. Mark `wlan0` as unmanaged by NetworkManager. Edit:
+2. Mark `wlan0` as unmanaged by NetworkManager. Edit:
    ```bash
    sudo nano /etc/NetworkManager/conf.d/unmanaged.conf
    ```
@@ -110,7 +124,7 @@ If ssh does not work, you may need to connect the Pi to an external screen and k
    [keyfile]
    unmanaged-devices=interface-name:wlan0
    ```
-4. Set a static IP for `wlan0`. Edit:
+3. Set a static IP for `wlan0`. Edit:
    ```bash
    sudo nano /etc/dhcpcd.conf
    ```
@@ -120,11 +134,11 @@ If ssh does not work, you may need to connect the Pi to an external screen and k
    static ip_address=192.168.4.1/24
    nohook wpa_supplicant
    ```
-5. Restart the dhcpcd service:
+4. Restart the dhcpcd service:
    ```bash
    sudo systemctl restart dhcpcd
    ```
-6. Configure hostapd. Edit:
+5. Configure hostapd. Edit:
    ```bash
    sudo nano /etc/hostapd/hostapd.conf
    ```
@@ -151,7 +165,7 @@ If ssh does not work, you may need to connect the Pi to an external screen and k
    wpa_key_mgmt=WPA-PSK
    rsn_pairwise=CCMP
    ```
-7. Point the hostapd daemon at that config. Edit:
+6. Point the hostapd daemon at that config. Edit:
    ```bash
    sudo nano /etc/default/hostapd
    ```
@@ -159,7 +173,7 @@ If ssh does not work, you may need to connect the Pi to an external screen and k
    ```ini
    DAEMON_CONF="/etc/hostapd/hostapd.conf"
    ```
-8. Back up and replace the dnsmasq config:
+7. Back up and replace the dnsmasq config:
    ```bash
    sudo mv /etc/dnsmasq.conf /etc/dnsmasq.conf.orig
    sudo nano /etc/dnsmasq.conf
@@ -175,7 +189,7 @@ If ssh does not work, you may need to connect the Pi to an external screen and k
 
    address=/#/192.168.4.1
    ```
-9. Unmask and enable the AP services, then restart networking and start them:
+8. Unmask and enable the AP services, then restart networking and start them:
    ```bash
    sudo systemctl unmask hostapd
    sudo systemctl enable hostapd
@@ -186,13 +200,13 @@ If ssh does not work, you may need to connect the Pi to an external screen and k
    sudo systemctl start hostapd
    sudo systemctl start dnsmasq
    ```
-10. Verify `wlan0` is running in AP mode:
+9. Verify `wlan0` is running in AP mode:
     ```bash
     iw dev wlan0 info
     ```
     If the type isn't `AP`, run `sudo reboot` and check again.
 
-### 2.7 Auto-Redirect Port 80 to the App (Port 4000)
+### 2.9 Auto-Redirect Port 80 to the App (Port 4000)
 
 1. Create the redirect service:
    ```bash
@@ -229,22 +243,26 @@ If ssh does not work, you may need to connect the Pi to an external screen and k
    ```
    Add:
    ```ini
-   [Unit]
-   Description=Solar Proa Advisor
-   After=network-online.target
-   Wants=network-online.target
+    [Unit]
+    Description=Solar Proa Advisor
+    After=network-online.target
+    Wants=network-online.target
 
-   [Service]
-   Type=simple
-   User=admin
-   WorkingDirectory=/home/admin/apps/advisor/proa_advisor
-   ExecStart=/usr/admin/local/bin/yarn start
-   Restart=always
-   RestartSec=5
-   Environment=NODE_ENV=production
+    [Service]
+    Type=simple
+    User=admin
+    WorkingDirectory=/home/admin/apps/advisor/proa_advisor
 
-   [Install]
-   WantedBy=multi-user.target
+    Environment=NODE_ENV=production
+    Environment=NVM_DIR=/home/admin/.nvm
+
+    ExecStart=/bin/bash -c 'source "$NVM_DIR/nvm.sh" && nvm use default && exec yarn start'
+
+    Restart=always
+    RestartSec=5
+
+    [Install]
+    WantedBy=multi-user.target
    ```
 2. Enable and start it:
    ```bash
@@ -257,7 +275,7 @@ If ssh does not work, you may need to connect the Pi to an external screen and k
    journalctl -u solarproa-advisor -f
    ```
 
-### 2.9 Note: AP vs. Wi-Fi Receiver Mode
+### 2.10 Note: AP vs. Wi-Fi Receiver Mode
 
 The Wi-Fi chip can only act as **either** an access point **or** a receiver at one time — switch back to receiving, or use an external Wi-Fi adapter.
 
