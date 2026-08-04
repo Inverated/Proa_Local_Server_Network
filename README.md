@@ -43,7 +43,7 @@ Using Raspberry Pi Lite OS for fast boot time in case of downtime.
 
 ### 2.3 Optimize Boot Time
 
-1. Open the quick system settings GUI:
+1. Open the quick system settings GUI to connect to a WiFi network for update purposes:
    ```bash
    sudo raspi-config
    ```
