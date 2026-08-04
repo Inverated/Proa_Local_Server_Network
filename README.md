@@ -29,6 +29,7 @@ Using Raspberry Pi Lite OS for fast boot time in case of downtime.
 
 ### 2.1 Initial Setup (from a fresh install via Raspberry Pi Imager)
 
+If ssh does not work, you may need to connect the Pi to an external screen and keyboard to enable it.
 1. Connect the Pi to an external screen (micro HDMI) and keyboard.
 2. Log in with the username and password created during Imager setup.
 3. Enable and start SSH:
