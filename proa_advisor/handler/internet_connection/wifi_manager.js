@@ -1,43 +1,49 @@
-const { spawn } = require('child_process');
-const os = require('os');
+const { spawn } = require("child_process");
+const os = require("os");
+
 const dev = "wlan1";
 
 function connectToWifi(ssid, password) {
-    if (os.platform() !== 'linux') {
-        return false; // Only support Linux for now
+    if (os.platform() !== "linux") {
+        return Promise.resolve(false);
     }
-    
-    const nmcli = spawn("nmcli", [
-        "device",
-        "wifi",
-        "connect",
-        ssid,
-        "password",
-        password,
-        "ifname",
-        dev,
-    ]);
 
-    nmcli.stdout.on("data", (data) => {
-        console.log("nmcli:", data.toString());
-    });
+    return new Promise((resolve) => {
+        const nmcli = spawn("nmcli", [
+            "device",
+            "wifi",
+            "connect",
+            ssid,
+            "password",
+            password,
+            "ifname",
+            dev,
+        ]);
 
-    nmcli.stderr.on("data", (data) => {
-        console.error("nmcli error:", data.toString());
-    });
+        nmcli.stdout.on("data", (data) => {
+            console.log("nmcli:", data.toString());
+        });
 
-    nmcli.on("close", (code) => {
-        console.log("nmcli exited with code:", code);
+        nmcli.stderr.on("data", (data) => {
+            console.error("nmcli error:", data.toString());
+        });
 
-        if (code === 0) {
-            console.log("Wi-Fi connected successfully");
-        } else {
-            console.log("Failed to connect");
-        }
-    });
+        nmcli.on("close", (code) => {
+            console.log("nmcli exited with code:", code);
 
-    nmcli.on("error", (err) => {
-        console.error("Failed to start nmcli:", err);
+            if (code === 0) {
+                console.log("Wi-Fi connected successfully");
+                resolve(true);
+            } else {
+                console.log("Failed to connect");
+                resolve(false);
+            }
+        });
+
+        nmcli.on("error", (err) => {
+            console.error("Failed to start nmcli:", err);
+            resolve(false);
+        });
     });
 }
 

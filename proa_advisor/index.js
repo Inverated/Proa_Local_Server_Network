@@ -143,7 +143,7 @@ app.post("/connect_wifi", middlewareAuth, (req, res) => {
     if (!ssid || !password) {
         return res.status(400).json({ message: "SSID and password are required" });
     }
-    const success = connectToWifi(ssid, password);
+    const success = await connectToWifi(ssid, password);
     if (success) {
         res.status(200).json({ message: "Connected to Wi-Fi successfully" });
     } else {
