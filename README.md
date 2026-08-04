@@ -108,6 +108,8 @@ If ssh does not work, you may need to connect the Pi to an external screen and k
    ```
 2. Force-stop the process once the initial build completes.
 
+3. Copy '.env' into proa_advisor
+
 ### 2.7 Set Up the Network (Wi-Fi Access Point)
 
 1. Stop the AP-related services before configuring them:
@@ -205,6 +207,25 @@ If ssh does not work, you may need to connect the Pi to an external screen and k
     iw dev wlan0 info
     ```
     If the type isn't `AP`, run `sudo reboot` and check again.
+
+10. Give access to user to run nmcli over Node
+    ```bash
+    sudo nano /etc/polkit-1/rules.d/50-nmcli.rules
+    ```
+    Add:
+    ```javascript
+    polkit.addRule(function(action, subject) {
+        if (action.id.indexOf("org.freedesktop.NetworkManager.") === 0 &&
+            subject.user == "admin") {
+            return polkit.Result.YES;
+        }
+    });
+    ```
+11. Restart polkit:
+    ```bash
+    sudo systemctl restart polkit
+    ```
+
 
 ### 2.9 Auto-Redirect Port 80 to the App (Port 4000)
 
