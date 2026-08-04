@@ -11,3 +11,21 @@
 .settings-tab-panel p {
     margin: 0;
 }
+
+
+.internet-management-status {
+    max-width: 70%;
+    word-break: break-word;
+}
+
+.internet-management-status.success {
+    color: #2e7d32;
+}
+
+.internet-management-status.error {
+    color: #d32f2f;
+}
+
+.internet-management-status.info {
+    color: #1565c0;
+}

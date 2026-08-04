@@ -14,10 +14,14 @@ function getAuthHeaders() {
     return headers;
 }
 
+type StatusKind = 'success' | 'error' | 'info';
+
 export default function InternetConnectivityTab() {
     const [isConnected, setIsConnected] = useState<boolean | null>(null);
     const [ssid, setSsid] = useState('');
     const [password, setPassword] = useState('');
+    const [statusMessage, setStatusMessage] = useState('');
+    const [statusKind, setStatusKind] = useState<StatusKind>('info');
 
     useEffect(() => {
         checkInternetConnectivity();
@@ -35,26 +39,58 @@ export default function InternetConnectivityTab() {
                 setIsConnected(data.hasInternet);
             } catch (error) {
                 console.error('Error checking internet connectivity:', error);
+
                 setIsConnected(false);
             }
         }
     };
 
-    function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    useEffect(() => {
+        if (!statusMessage) {
+            return;
+        }
+
+        const timeoutId = window.setTimeout(() => {
+            setStatusMessage('');
+        }, 4000);
+
+        return () => window.clearTimeout(timeoutId);
+    }, [statusMessage]);
+
+    async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
         event.preventDefault();
-        fetch('/connect_wifi', {
-            method: 'POST',
-            headers: getAuthHeaders(),
-            body: JSON.stringify({
-                ssid: ssid,
-                password: password,
-            }),
-        }).then((response) => response.json())
-            .then((data) => {
-                if (data.success) {
-                    checkInternetConnectivity();
-                }
-            });
+        try {
+            const response = await fetch('/connect_wifi', {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify({
+                    ssid: ssid,
+                    password: password,
+                }),
+            })
+            const data = await response.json()
+            if (data.success) {
+                checkInternetConnectivity();
+            }
+        } catch {
+            const response = await fetch('http://localhost:4000/connect_wifi', {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify({
+                    ssid: ssid,
+                    password: password,
+                }),
+            })
+            const data = await response.json();
+            if (data.success) {
+                setStatusMessage('Successfully connected to Wi-Fi.');
+                setStatusKind('success');
+                checkInternetConnectivity();
+            } else {
+                setStatusMessage('Failed to connect to Wi-Fi.');
+                setStatusKind('error');
+            }
+        }
     }
 
     return (
@@ -91,7 +127,13 @@ export default function InternetConnectivityTab() {
                     </form>
                 </>
             )}
+            {statusMessage && (
+                <p className={`internet-management-status ${statusKind}`}>
+                    {statusMessage}
+                </p>
+            )}
         </Stack>
+
 
     );
 }

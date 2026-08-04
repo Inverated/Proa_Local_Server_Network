@@ -3,12 +3,37 @@
 // Account for windows and linus 
 
 const express = require("express");
-const { fork } = require("child_process");
+const { fork, spawn } = require("child_process");
+const path = require("path");
 
 let child = null;
 let isRestarting = false;
+const rootDir = path.resolve(__dirname, "..")
 
-function startServer() {
+function runRebuild() {
+    return new Promise((resolve, reject) => {
+        const cmd = process.platform === "win32" ? "yarn.cmd" : "yarn";
+
+        const rebuild = spawn(cmd, ["rebuild"], {
+            stdio: "inherit",
+            shell: true,
+            cwd: rootDir
+        });
+
+        rebuild.on("close", (code) => {
+            if (code === 0) {
+                resolve();
+            } else {
+                reject(new Error(`yarn rebuild failed with exit code ${code}`));
+            }
+        });
+
+        rebuild.on("error", reject);
+    });
+}
+
+async function startServer() {
+    await runRebuild();
     child = fork("./index.js");
 
     child.on("message", (message) => {

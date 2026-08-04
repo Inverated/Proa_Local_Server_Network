@@ -138,16 +138,16 @@ app.get("/ncsi.txt", (req, res) => {
 // ------------------- //
 // PROTECTED ROUTES
 // ------------------- //
-app.post("/connect_wifi", middlewareAuth, (req, res) => {
+app.post("/connect_wifi", middlewareAuth, async (req, res) => {
     const { ssid, password } = req.body;
     if (!ssid || !password) {
         return res.status(400).json({ message: "SSID and password are required" });
     }
     const success = await connectToWifi(ssid, password);
-    if (success) {
-        res.status(200).json({ message: "Connected to Wi-Fi successfully" });
+    if (success.success) {
+        res.status(200).json({ message: success.message });
     } else {
-        res.status(500).json({ message: "Failed to connect to Wi-Fi" });
+        res.status(500).json({ message: success.message });
     }
 });
 
