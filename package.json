@@ -12,6 +12,7 @@
     "start:all": "cd proa_advisor && npm run start:all"
   },
   "dependencies": {
+    "@vitejs/plugin-react": "^6.0.5",
     "concurrently": "^10.0.3"
   }
 }

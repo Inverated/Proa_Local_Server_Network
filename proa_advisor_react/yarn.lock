@@ -966,7 +966,7 @@
   dependencies:
     csstype "^3.2.2"
 
-"@vitejs/plugin-react@^6.0.1":
+"@vitejs/plugin-react@^6.0.5":
   version "6.0.5"
   resolved "https://registry.yarnpkg.com/@vitejs/plugin-react/-/plugin-react-6.0.5.tgz#48ee7951093ff9054952cff9d64e874355cde372"
   integrity sha512-BOVzne/NL162sMdResB25mUv+vWMF5NoAjNf09TeGlE7ZpszZWSD3winycicLJw72yeVsoCn/2kOhEuCvEShMA==

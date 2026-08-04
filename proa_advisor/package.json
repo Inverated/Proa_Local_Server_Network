@@ -12,7 +12,7 @@
     "build:react": "cd ../proa_advisor_react && yarn && yarn run build",
     "copy:react": "node scripts/copyReactBuild.js",
     "rebuild": "yarn && yarn run build:react && yarn run copy:react",
-    "start:all": "yarn && yarn run build:react && yarn run copy:react && yarn run start"
+    "start:all": "yarn && yarn run start"
   },
   "dependencies": {
     "@supabase/server": "^1.4.1",
