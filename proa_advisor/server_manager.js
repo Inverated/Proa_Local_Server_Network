@@ -33,13 +33,23 @@ function runRebuild() {
 }
 
 async function startServer() {
-    await runRebuild();
     child = fork("./index.js");
 
     child.on("message", (message) => {
         if (message.action === "restart") {
             isRestarting = true;
             child.kill("SIGTERM");
+        } else if (message.action === "rebuild") {
+            runRebuild()
+            .then(() => {
+                    isRestarting = true;
+                    console.log("Rebuild completed successfully. Restarting server...");
+                    child.kill("SIGTERM");
+                })
+                .catch((err) => {
+                    console.error("Rebuild failed:", err);
+                    isRestarting = false; // Prevent restart if rebuild fails
+                });
         } else if (message.action === "stop") {
             isRestarting = false;
             child.kill("SIGTERM");

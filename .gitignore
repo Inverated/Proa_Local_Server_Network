@@ -2,3 +2,7 @@ node_modules/
 *.db
 package-lock.json
 *.env
+*.db-shm
+*.db-wal
+proa_advisor/proa.db-shm
+proa_advisor/proa.db-wal
