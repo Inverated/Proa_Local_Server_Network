@@ -19,6 +19,7 @@ React frontend with MUI dashboard template
 4. Run `yarn start:all`.
    - This automatically builds the React app and runs it with Node.js.
 5. Open `http://localhost:4000` in your browser.
+6. Dev panel access: username=admin   password=admin
 
 ---
 
@@ -84,7 +85,7 @@ If ssh does not work, you may need to connect the Pi to an external screen and k
 1. Update and install system packages:
    ```bash
    sudo apt full-upgrade
-   sudo apt install git nodejs npm curl hostapd dnsmasq dhcpcd5 iptables -y
+   sudo apt install git nodejs npm curl hostapd dnsmasq dhcpcd5 iptables nginx -y
    sudo npm install yarn -g
    ```
 2. Install nvm and Node LTS:
@@ -231,30 +232,40 @@ If ssh does not work, you may need to connect the Pi to an external screen and k
 
 1. Create the redirect service:
    ```bash
-   sudo nano /etc/systemd/system/solarproa-redirect-connection.service
+   sudo nano /etc/nginx/sites-available/solarproa
    ```
    Add:
    ```ini
-   [Unit]
-   Description=Redirect HTTP port 80 to Advisor port 4000
-   After=network-online.target
-   Wants=network-online.target
+   server {
+    listen 80;
+    server_name solarproa.local;
 
-   [Service]
-   Type=oneshot
-   RemainAfterExit=yes
-   ExecStart=/bin/sh -c '/usr/sbin/iptables -t nat -C PREROUTING -i wlan0 -p tcp --dport 80 -j REDIRECT --to-ports 4000 || /usr/sbin/iptables -t nat -A PREROUTING -i wlan0 -p tcp --dport 80 -j REDIRECT --to-ports 4000'
-   ExecStop=/bin/sh -c '/usr/sbin/iptables -t nat -D PREROUTING -i wlan0 -p tcp --dport 80 -j REDIRECT --to-ports 4000 || true'
+    location / {
+        proxy_pass http://127.0.0.1:4000;
 
-   [Install]
-   WantedBy=multi-user.target
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+   }
    ```
 2. Enable and start it:
    ```bash
-   sudo systemctl daemon-reload
-   sudo systemctl enable solarproa-redirect-connection
-   sudo systemctl start solarproa-redirect-connection
+   sudo ln -s /etc/nginx/sites-available/solarproa /etc/nginx/sites-enabled/
    ```
+
+3. Test it:
+   ```bash
+   sudo nginx -t
+   ```
+
+4. Restart nginx service
+   ```bash
+   sudo systemctl restart nginx
+   ```
+
+   When connected to the same network as the raspberry pi, go to http://solarproa.local
 
 ### 2.8 Set Up Auto-Start on Boot
 
