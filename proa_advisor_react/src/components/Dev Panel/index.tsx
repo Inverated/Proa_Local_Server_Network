@@ -10,9 +10,6 @@ import Stack from '@mui/material/Stack';
 import Button from '@mui/material/Button';
 import TextField from '@mui/material/TextField'; '@mui/material/TextField';
 
-import { jwtDecode } from "jwt-decode";
-
-
 export default function DevPanel() {
     const [token, setToken] = useState(localStorage.getItem('token') || '');
 
@@ -28,19 +25,24 @@ export default function DevPanel() {
         }
     }, []);
 
-    function jwtExpired(token: string): boolean {
-        try {
-            const decoded: any = jwtDecode(token);
-            const currentTime = Date.now() / 1000;
-            return decoded.exp < currentTime;
-        } catch (e) {
+    // Check token expiry using client-side login timestamp rather than the JWT's
+    // embedded exp field. This avoids false expiry when the server (Raspberry Pi)
+    // has an incorrect system clock due to missing NTP sync while offline.
+    // The server issues tokens valid for 1 hour, so we mirror that on the client.
+    const TOKEN_LIFETIME_MS = 60 * 60 * 1000; // 1 hour
+
+    function tokenExpired(): boolean {
+        const loginTime = localStorage.getItem('token_login_time');
+        if (!loginTime) {
             return true;
         }
-    }            
+        return Date.now() - Number(loginTime) > TOKEN_LIFETIME_MS;
+    }
 
     useEffect(() => {
-        if (token && jwtExpired(token)) {
+        if (token && tokenExpired()) {
             localStorage.removeItem('token');
+            localStorage.removeItem('token_login_time');
             setToken('');
         }
     }, [selectedIndex, token]);
@@ -61,6 +63,7 @@ export default function DevPanel() {
         .then((data) => {
             if (data.token) {
                 localStorage.setItem('token', data.token);
+                localStorage.setItem('token_login_time', Date.now().toString());
                 setToken(data.token);
             } else {
                 setError('Login failed. Please check your credentials.');
@@ -78,6 +81,7 @@ export default function DevPanel() {
             .then((data) => {
                 if (data.token) {
                     localStorage.setItem('token', data.token);
+                    localStorage.setItem('token_login_time', Date.now().toString());
                     setToken(data.token);
                 } else {
                     setError('Login failed. Please check your credentials.');
@@ -133,6 +137,7 @@ export default function DevPanel() {
                     <ListItem key="logout" disablePadding sx={{ display: 'block', borderTop: '1px solid #ccc', marginTop: '10px' }}>
                         <ListItemButton onClick={() => {
                             localStorage.removeItem('token');
+                            localStorage.removeItem('token_login_time');
                             setToken('');
                         }}>
                             <ListItemText primary="Logout" />
