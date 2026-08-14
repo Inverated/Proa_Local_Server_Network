@@ -4,6 +4,6 @@
     - Calibrate strain stuff
     - Drop all data in DB
     
-4. Use ai to rewrite markdown instructions for readability (specify that is meant for those who dk linux)
-5. Remove content from original downloaded template
-6. Update file structure from template to mine`
+4. Remove content from original downloaded template
+5. Update file structure from template to mine
+6. Bug fix: w/o internet, cannot login to dev
