@@ -36,7 +36,7 @@ async function startServer() {
     child = fork("./index.js");
 
     child.on("message", (message) => {
-        if (message.action === "restart") {
+        if (message.action === "restart") { // unused, but kept for future use
             isRestarting = true;
             child.kill("SIGTERM");
         } else if (message.action === "rebuild") {
