@@ -3,6 +3,7 @@ const { ReadlineParser } = require('@serialport/parser-readline');
 const { onNewSample } = require("../../lib/Kalman Filter/kalman_filter")
 const { parsePowerData, consumePowerQueue } = require('./components/power_data_parser');
 const { parseSensorPowerData } = require('./components/sensor_power_parser');
+const { parseTelemetryData } = require('./components/imu_data_parser');
  
 const PACKET_BYTES = 4 + 2 + 4 + (8 * 2) + 2; // Fix at 28 bytes
 const POWER_HEADER = 'PWER';
@@ -12,6 +13,10 @@ const POWER_HEADER_INT = POWER_HEADER_BUFFER.readUInt32LE(0);
 const SENSOR_HEADER = 'SENS';
 const SENSOR_HEADER_BUFFER = Buffer.from(SENSOR_HEADER, 'ascii');
 const SENSOR_HEADER_INT = SENSOR_HEADER_BUFFER.readUInt32LE(0);
+
+const TELE_HEADER = 'TELE';
+const TELE_HEADER_BUFFER = Buffer.from(TELE_HEADER, 'ascii');
+const TELE_HEADER_INT = TELE_HEADER_BUFFER.readUInt32LE(0);
 
 let connectedPort = null;
 function getConnectedPort() {
@@ -66,6 +71,8 @@ async function findValidPort(baudRate = 2000000, timeoutMs = 2000) {
                     return { port, path: portInfo.path };
                 } else if (line && line.includes(SENSOR_HEADER)) {
                     return { port, path: portInfo.path };
+                } else if (line && line.includes(TELE_HEADER)) {
+                    return { port, path: portInfo.path };
                 }
                 console.log(`Attempt ${attempt + 1}/3: No valid response from ${portInfo.path}`);
             }
@@ -105,6 +112,17 @@ function processBuffer() {
         } else if (headerType === SENSOR_HEADER_INT) {
             if (recvBuf.length < PACKET_BYTES) break;
             const result = parseSensorPowerData(recvBuf, PACKET_BYTES, packetSkipped);
+            if (!result) {
+                packetSkipped++;
+                recvBuf = recvBuf.subarray(1); // Advance one byte to re-sync
+                continue; // Resync to next header
+            } else {
+                recvBuf = result;
+                packetSkipped = 0;
+            }
+        } else if (headerType === TELE_HEADER_INT) {
+            if (recvBuf.length < PACKET_BYTES) break;
+            const result = parseTelemetryData(recvBuf, PACKET_BYTES, packetSkipped);
             if (!result) {
                 packetSkipped++;
                 recvBuf = recvBuf.subarray(1); // Advance one byte to re-sync
