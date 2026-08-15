@@ -168,14 +168,15 @@ app.get("/set_mode_and_restart", middlewareAuth, (req, res) => {
     res.status(200).json({ message: `Switched mode to ${process.env.IS_TEST_RUN === "true" ? "test" : "normal"}` });
 });
 
-app.get("/restart_server", middlewareAuth, (req, res) => {
+app.get("/rebuild_and_restart", middlewareAuth, (req, res) => {
+    console.log("Rebuild and restart requested.");
     if (process.send) {
         closeAllConnections();
         process.send({
-            action: "restart"
+            action: "rebuild"
         });
     }
-    res.status(200).json({ message: "Server is restarting..." });
+    res.status(200).json({ message: "Rebuild initiated. Server will restart after rebuild." });
 });
 
 app.get("/stop_server", middlewareAuth, (req, res) => {

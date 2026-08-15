@@ -118,7 +118,7 @@ export default function ServerManagementTab() {
 
         setStatusMessage('');
         try {
-            const data = await fetchWithFallback('/restart_server');
+            const data = await fetchWithFallback('/rebuild_and_restart');
             setStatusKind('info');
             setStatusMessage(data.message || 'Server is restarting...');
         } catch (error) {
