@@ -30,7 +30,7 @@ struct GravityPacket {
 const char TOP_NODE_NAME[] = "XIAO_TOP_IMU";
 
 // -------- Tuning --------
-const uint32_t UPDATE_INTERVAL_MS = 50;     // 20 Hz BLE updates
+const uint32_t UPDATE_INTERVAL_MS = 100;     // 10 Hz BLE updates
 const uint32_t STATUS_INTERVAL_MS = 500;
 const float FILTER_ALPHA = 0.93f;           // higher = smoother but slower response
 const float MIN_ACCEL_NORM = 0.70f;         // reject samples during strong motion/vibration
