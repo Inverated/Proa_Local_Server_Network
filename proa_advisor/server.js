@@ -1,12 +1,14 @@
 const dotenv = require("dotenv");
 dotenv.config();
 
+const HARD_STOP_SUPABASE = true;
 
 const { startDB, insertBatteryState } = require('./model/power_management_models');
+const { initializeIMUTable } = require('./model/imu_models');
 const { run_test } = require("./lib/Kalman Filter/ekf_test")
 const { getCurrentRunId, setAlternateBatteryType, setMainBatteryType } = require("./lib/Kalman Filter/kalman_filter");
 const { startSerialReader } = require('./handler/serial_reader/serialReader');
-const { updateDatabase } = require("./handler/database_update/database_update");
+const { updateDatabase } = require("./handler/database_update/supabase_update");
 
 
 const OVERRIDE_DB = process.env.OVERRIDE_DB === 'true';
@@ -15,6 +17,8 @@ function startBackend() {
     useSupabase();
 
     startDB().then(() => {
+        return initializeIMUTable();
+    }).then(() => {
         //return insertBatteryState(battery_type = "LiNMC", tableName = "MainRCMapping", override = OVERRIDE_DB);
         setMainBatteryType(process.env.MAIN_BATTERY_TYPE);
         return insertBatteryState(battery_type = process.env.MAIN_BATTERY_TYPE  , tableName = "MainRCMapping", override = OVERRIDE_DB);
@@ -38,7 +42,11 @@ function startBackend() {
 
 function useSupabase() {
     if (process.env.USE_SUPABASE === 'true') {
-        setInterval(updateDatabase, 1000); // Call updateDatabase every 10 seconds only if there is internet connection
+        if (HARD_STOP_SUPABASE) {
+            console.log("Forcefully stopped the connection with supabase")
+        } else {
+            setInterval(updateDatabase, 1000); // Call updateDatabase every 10 seconds only if there is internet connection
+        }
     }
 }
 

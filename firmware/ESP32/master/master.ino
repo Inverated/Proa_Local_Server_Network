@@ -14,7 +14,7 @@ volatile uint32_t prev_tick;
 volatile uint32_t last_received_tick;
 
 // Only enable 1 at a time
-#define LOGGING       1
+#define LOGGING       0
 #define TRANSMITTING  1
 
 // ESP Now setup
@@ -138,6 +138,8 @@ inline void update_connected_dev(uint8_t count) {
 void checkForSerialCommands() {
   if (Serial.available()) {
     String cmd = Serial.readStringUntil('\n');
+    Serial.print("Command: ");
+    Serial.println(cmd);
     // Parse the command and MAC address
     int colonIndex = cmd.indexOf('|');
     if (colonIndex != -1) {
@@ -153,12 +155,26 @@ void sendCommandToNode(const String& macAddress, const String& command) {
   uint8_t mac[6];
   sscanf(macAddress.c_str(), "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx", &mac[0], &mac[1], &mac[2], &mac[3], &mac[4], &mac[5]);
 
+  // ESP-NOW requires the target to be registered as a peer before sending.
+  if (!esp_now_is_peer_exist(mac)) {
+    esp_now_peer_info_t peerInfo = {};
+    memcpy(peerInfo.peer_addr, mac, 6);
+    peerInfo.channel = 0;
+    peerInfo.encrypt = false;
+    esp_err_t addResult = esp_now_add_peer(&peerInfo);
+    if (addResult != ESP_OK) {
+      Serial.printf("Failed to add peer: %d\n", addResult);
+      return;
+    }
+    Serial.println("Peer added");
+  }
+
   // Send the command via ESP-NOW
   esp_err_t result = esp_now_send(mac, (uint8_t*)command.c_str(), command.length());
   if (result == ESP_OK) {
     Serial.println("Command sent successfully");
   } else {
-    Serial.println("Error sending command");
+    Serial.printf("Error sending command: %d\n", result);
   }
 }
 

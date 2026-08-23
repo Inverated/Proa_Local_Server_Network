@@ -38,7 +38,6 @@ async function updateDatabase() {
             if (insertError) {
                 console.error("Error inserting data into supabase:", insertError);
                 console.error("Failed rows:", rows);
-                console.log(insertData);
                 break;
             } 
             //console.log(`Inserted ${rows.length} records into supabase. Total inserted: ${offset + rows.length}`);

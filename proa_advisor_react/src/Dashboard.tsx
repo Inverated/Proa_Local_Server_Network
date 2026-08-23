@@ -21,11 +21,13 @@ import { useEffect, useState } from 'react';
 import Overview from './components/MainBody/Overview';
 import PowerManagement from './components/MainBody/PowerManagement';
 import StrainManagement from './components/MainBody/StrainManagement';
+import MastMonitor from './components/MainBody/MastMonitor';
 import Settings from './components/Settings';
 import DevPanel from './components/Dev Panel';
 import MessageBlock from './components/FloatingMessage/MessageBlock';
 import './data_type/message';
 import './data_type/power';
+import './data_type/imu';
 
 
 const xThemeComponents = {
@@ -41,6 +43,7 @@ export default function Dashboard(props: { disableCustomTheme?: boolean }) {
     const [powerData, setPowerData] = useState<PowerData | null>(null);
     const [messages, setMessages] = useState<MessageData[]>([]);  // For floating messages
     const [strainData, setStrainData] = useState<null>(null);  // To be implemented
+    const [imuData, setImuData] = useState<IMUData | null>(null);
 
     useEffect(() => {
         let eventSource: EventSource | null = null;
@@ -73,6 +76,11 @@ export default function Dashboard(props: { disableCustomTheme?: boolean }) {
         eventSource.addEventListener("strain", (event) => {
             const data = JSON.parse(event.data);
             setStrainData(data);
+        });
+
+        eventSource.addEventListener("imu", (event) => {
+            const data = JSON.parse(event.data);
+            setImuData(data);
         });
 
         eventSource.addEventListener("message", (event) => {
@@ -115,9 +123,10 @@ export default function Dashboard(props: { disableCustomTheme?: boolean }) {
                                 mainContent === 0 ? 'Overview' :
                                     mainContent === 1 ? 'Power Management' :
                                         mainContent === 2 ? 'Strain Management' :
-                                            mainContent === 3 ? 'Dev Panel' :
-                                                mainContent === 4 ? 'Settings' :
-                                                    mainContent === 5 ? 'About' :
+                                            mainContent === 3 ? 'Mast Monitor' :
+                                                mainContent === 4 ? 'Dev Panel' :
+                                                    mainContent === 5 ? 'Settings' :
+                                                        mainContent === 6 ? 'About' :
                                             'Unknown'} />
                         <MessageBlock Messages={messages} />
                         <Stack sx={{ width: "100%", height: "100%" }}>
@@ -125,9 +134,10 @@ export default function Dashboard(props: { disableCustomTheme?: boolean }) {
                                 mainContent === 0 ? <Overview powerData={powerData} strainData={strainData} /> :
                                     mainContent === 1 ? <PowerManagement data={powerData} /> :
                                         mainContent === 2 ? <StrainManagement /> :
-                                            mainContent === 3 ? <DevPanel /> :
-                                                mainContent === 4 ? <Settings /> :
-                                                    mainContent === 5 ? <div>About</div> :
+                                            mainContent === 3 ? <MastMonitor data={imuData} /> :
+                                                mainContent === 4 ? <DevPanel /> :
+                                                    mainContent === 5 ? <Settings /> :
+                                                        mainContent === 6 ? <div>About</div> :
                                             <div>Unknown Content</div>
                             }
                         </Stack>

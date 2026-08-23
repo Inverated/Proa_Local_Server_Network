@@ -12,10 +12,13 @@ import InfoRoundedIcon from '@mui/icons-material/InfoRounded';
 import ImportantDevicesIcon from '@mui/icons-material/ImportantDevices';
 import { useEffect, useState } from 'react';
 
+import StraightenIcon from '@mui/icons-material/Straighten';
+
 const mainListItems = [
     { text: 'Overview', icon: <HomeRoundedIcon /> },
     { text: 'Power Management', icon: <AnalyticsRoundedIcon /> },
     { text: 'Strain Gauge', icon: <PeopleRoundedIcon /> },
+    { text: 'Mast Monitor', icon: <StraightenIcon /> },
 ];
 
 const secondaryListItems = [
