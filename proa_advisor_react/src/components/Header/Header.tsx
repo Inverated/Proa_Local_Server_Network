@@ -1,7 +1,5 @@
 import Stack from '@mui/material/Stack';
-import NotificationsRoundedIcon from '@mui/icons-material/NotificationsRounded';
 import NavbarBreadcrumbs from './NavbarBreadcrumbs';
-import MenuButton from './MenuButton';
 import ColorModeIconDropdown from '../../theme/ColorModeIconDropdown';
 
 export default function Header({ currentTab }: { currentTab?: string }) {
@@ -20,9 +18,6 @@ export default function Header({ currentTab }: { currentTab?: string }) {
     >
       <NavbarBreadcrumbs currentTab={currentTab} />
       <Stack direction="row" sx={{ gap: 1 }}>
-        <MenuButton showBadge aria-label="Open notifications">
-          <NotificationsRoundedIcon />
-        </MenuButton>
         <ColorModeIconDropdown />
       </Stack>
     </Stack>

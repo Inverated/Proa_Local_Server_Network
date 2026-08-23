@@ -5,7 +5,6 @@ import "@xterm/xterm/css/xterm.css";
 import './styles.css';
 
 export default function ConsoleTab() {
-    // Uses xterm for terminal emulation and react-xterm for React integration.
     const terminalRef = useRef(null);
 
     useEffect(() => {
@@ -19,37 +18,61 @@ export default function ConsoleTab() {
         });
 
         const fitAddon = new FitAddon();
-
         term.loadAddon(fitAddon);
-
         terminalRef.current && term.open(terminalRef.current);
-
         fitAddon.fit();
-        const token = localStorage.getItem("token");
-        const socket = new WebSocket("ws://localhost:3001?token=" + token);
 
-        socket.onopen = () => {
-            term.writeln("Connected");
-        };
+        let socket: WebSocket | null = null;
+        let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+        let disposed = false;
 
-        socket.onmessage = (event) => {
-            term.write(event.data);
-        };
+        function connect() {
+            if (disposed) return;
 
-        term.onData((data: string) => {
-            socket.send(data);
-        });
+            const token = localStorage.getItem("token");
+            socket = new WebSocket("ws://localhost:3001?token=" + token);
 
-        socket.onclose = () => {
-            term.writeln("\r\nConnection closed\n");
-        };
+            socket.onopen = () => {
+                term.writeln("Connected");
+            };
 
-        window.addEventListener("resize", () => {
-            fitAddon.fit();
-        });
+            socket.onmessage = (event) => {
+                term.write(event.data);
+            };
+
+            term.onData((data: string) => {
+                if (socket && socket.readyState === WebSocket.OPEN) {
+                    socket.send(data);
+                }
+            });
+
+            socket.onclose = () => {
+                term.writeln("\r\nConnection closed. Reconnecting...");
+                scheduleReconnect();
+            };
+
+            socket.onerror = () => {
+                // onclose will fire after this, which triggers reconnect
+            };
+        }
+
+        function scheduleReconnect() {
+            if (disposed) return;
+            reconnectTimeout = setTimeout(() => {
+                connect();
+            }, 2000);
+        }
+
+        connect();
+
+        const handleResize = () => fitAddon.fit();
+        window.addEventListener("resize", handleResize);
 
         return () => {
-            socket.close();
+            disposed = true;
+            if (reconnectTimeout) clearTimeout(reconnectTimeout);
+            if (socket) socket.close();
+            window.removeEventListener("resize", handleResize);
             term.dispose();
         };
     }, []);
