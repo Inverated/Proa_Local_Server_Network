@@ -14,7 +14,7 @@ function requestCommand(macAddress, command) {
     }
     if (!port) {
         console.error('No connected serial port available for sending command.');
-        return;
+        return false;
     }
 
     // Message (Seperator |, do not use : as mac address contains :)
@@ -24,8 +24,12 @@ function requestCommand(macAddress, command) {
         if (err) {
             console.error('Error writing to serial port:', err.message);
         } else {
-            // Logging
-            console.log(`Command sent: ${message}`);
+            //console.log(`Command sent: ${message}`);
         }
     });
+    return true;
 }
+
+module.exports = {
+    requestCommand
+};

@@ -37,9 +37,11 @@
 #include <BLEClient.h>
 #include <BLEAdvertisedDevice.h>
 #include <math.h>
+#include <U8g2lib.h>
+#include <MUIU8g2.h>
 
 // Logging: set to 0 for production to save flash/CPU
-#define LOGGING 1
+#define LOGGING 0
 #define SHOW_SUCCESS 0
 
 // =======================
@@ -56,6 +58,8 @@
 uint8_t receiverAddr[] = { 0xac, 0xeb, 0xe6, 0x49, 0xc7, 0xcc };
 
 esp_now_peer_info_t peerInfo;
+
+U8G2_SSD1306_72X40_ER_F_SW_I2C u8g2(U8G2_R0, /* clock=*/6, /* data=*/5, /* reset=*/U8X8_PIN_NONE);
 
 uint32_t str_to_u32(const char s[4]) {
   return ((uint32_t)s[3] << 24) | ((uint32_t)s[2] << 16) | ((uint32_t)s[1] << 8) | ((uint32_t)s[0]);
@@ -448,6 +452,7 @@ void readAndSendPower() {
   pkt.payload.current_mA   = ina219.getCurrent_mA();
   pkt.payload.power_mW     = ina219.getPower_mW();
   pkt.payload.loadvoltage  = pkt.payload.busvoltage + (pkt.payload.shuntvoltage / 1000.0f);
+  updateDisplay(pkt.payload.busvoltage, pkt.payload.current_mA, pkt.payload.power_mW);
 
   finalizePacket(pkt, SENS_HEADER, sensCounter);
   incrementCounter(sensCounter);
@@ -457,6 +462,28 @@ void readAndSendPower() {
   Serial.printf("[SENS #%u] V=%.2f I=%.1fmA P=%.0fmW\n",
     sensCounter - 1, pkt.payload.loadvoltage, pkt.payload.current_mA, pkt.payload.power_mW);
 #endif
+}
+
+bool init_OLED() {
+  u8g2.begin();
+  u8g2.setFont(u8g2_font_ncenB08_tr);
+  u8g2.setDrawColor(1);  // White
+  u8g2.clearBuffer();
+  u8g2.drawStr(0, 10, "Hallo");
+  u8g2.drawStr(0, 22, "wold");
+  u8g2.sendBuffer();
+  return true;
+}
+
+void updateDisplay(float busvoltage, float current_mA, float power_mW) {
+  u8g2.clearBuffer();
+  String v_message = "V:" + String(busvoltage, 2) + "V";
+  u8g2.drawStr(0, 10, v_message.c_str());
+  String A_message = "I:" + String(current_mA, 2) + "mA";
+  u8g2.drawStr(0, 22, A_message.c_str());
+  String P_message = "P:" + String(power_mW, 0) + "mW";
+  u8g2.drawStr(0, 34, P_message.c_str());
+  u8g2.sendBuffer();
 }
 
 // =======================
@@ -478,6 +505,10 @@ void setup() {
 
   // --- WiFi + ESP-NOW ---
   WiFi.mode(WIFI_STA);
+  Serial.print("ESP32 MAC Address: ");
+  Serial.println(WiFi.macAddress());
+  
+  init_OLED();
 
 #if LOGGING
   Serial.printf("MAC: %s\n", WiFi.macAddress().c_str());

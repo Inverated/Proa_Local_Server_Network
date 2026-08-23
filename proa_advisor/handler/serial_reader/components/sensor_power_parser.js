@@ -45,6 +45,9 @@ function parseSensorPowerData(recvBuf, packet_bytes, packetSkipped = 0) {
         return null;
     }
 
+    //console.log(`Shunt: ${shuntvoltage}V; Bus: ${busvoltage}V; Load: ${loadvoltage}V`)
+    //console.log(`Load: ${current_mA}mA; Power: ${power_mW}mW`)
+
     // Update the sensor power consumption in the Kalman filter
     setSensorPowerConsumption(power_mW / 1000); // Convert mW to W
     

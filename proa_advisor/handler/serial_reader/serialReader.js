@@ -3,7 +3,7 @@ const { ReadlineParser } = require('@serialport/parser-readline');
 const { onNewSample } = require("../../lib/Kalman Filter/kalman_filter")
 const { parsePowerData, consumePowerQueue } = require('./components/power_data_parser');
 const { parseSensorPowerData } = require('./components/sensor_power_parser');
-const { parseTelemetryData } = require('./components/imu_data_parser');
+const { parseIMUData, consumeIMUQueue } = require('./components/imu_data_parser');
  
 const PACKET_BYTES = 4 + 2 + 4 + (8 * 2) + 2; // Fix at 28 bytes
 const POWER_HEADER = 'PWER';
@@ -14,9 +14,9 @@ const SENSOR_HEADER = 'SENS';
 const SENSOR_HEADER_BUFFER = Buffer.from(SENSOR_HEADER, 'ascii');
 const SENSOR_HEADER_INT = SENSOR_HEADER_BUFFER.readUInt32LE(0);
 
-const TELE_HEADER = 'TELE';
-const TELE_HEADER_BUFFER = Buffer.from(TELE_HEADER, 'ascii');
-const TELE_HEADER_INT = TELE_HEADER_BUFFER.readUInt32LE(0);
+const IMU_HEADER = 'MAST';
+const IMU_HEADER_BUFFER = Buffer.from(IMU_HEADER, 'ascii');
+const IMU_HEADER_INT = IMU_HEADER_BUFFER.readUInt32LE(0);
 
 let connectedPort = null;
 function getConnectedPort() {
@@ -65,13 +65,12 @@ async function findValidPort(baudRate = 2000000, timeoutMs = 2000) {
                         resolve(data.trim());
                     });
                 });
-                if (line && line.includes('ADC Ready')) {
+                if (line == null) {
+                    
+                } else if (line && line.includes('ADC Ready')) {
                     return { port, path: portInfo.path };
-                } else if (line && line.includes(POWER_HEADER)) {
-                    return { port, path: portInfo.path };
-                } else if (line && line.includes(SENSOR_HEADER)) {
-                    return { port, path: portInfo.path };
-                } else if (line && line.includes(TELE_HEADER)) {
+                } else if (line && line.includes(POWER_HEADER) || line.includes(SENSOR_HEADER)
+                    || line.includes(IMU_HEADER)) {
                     return { port, path: portInfo.path };
                 }
                 console.log(`Attempt ${attempt + 1}/3: No valid response from ${portInfo.path}`);
@@ -98,7 +97,9 @@ function processBuffer() {
     while (recvBuf.length >= PACKET_BYTES) {
         // Find header
         headerType = recvBuf.readUInt32LE(0);
+        //console.log("Header found:", headerType)
         if (headerType === POWER_HEADER_INT) {
+            //console.log("power");
             if (recvBuf.length < PACKET_BYTES) break;
             const result = parsePowerData(recvBuf, PACKET_BYTES, packetSkipped);
             if (!result) {
@@ -110,6 +111,7 @@ function processBuffer() {
                 packetSkipped = 0;
             }
         } else if (headerType === SENSOR_HEADER_INT) {
+            //console.log("Sensor");
             if (recvBuf.length < PACKET_BYTES) break;
             const result = parseSensorPowerData(recvBuf, PACKET_BYTES, packetSkipped);
             if (!result) {
@@ -120,9 +122,10 @@ function processBuffer() {
                 recvBuf = result;
                 packetSkipped = 0;
             }
-        } else if (headerType === TELE_HEADER_INT) {
+        } else if (headerType === IMU_HEADER_INT) {
+            //console.log("IMU");
             if (recvBuf.length < PACKET_BYTES) break;
-            const result = parseTelemetryData(recvBuf, PACKET_BYTES, packetSkipped);
+            const result = parseIMUData(recvBuf, PACKET_BYTES, packetSkipped);
             if (!result) {
                 packetSkipped++;
                 recvBuf = recvBuf.subarray(1); // Advance one byte to re-sync

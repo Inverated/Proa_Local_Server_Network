@@ -66,7 +66,7 @@ BLECharacteristic telemetryChar(
 
 BLEStringCharacteristic commandChar(
   "7A100002-3E2D-4B6A-9F10-112233445566",
-  BLEWrite,
+  BLEWrite | BLEWriteWithoutResponse,
   40
 );
 
@@ -256,8 +256,15 @@ void writeTelemetry() {
 
   telemetryChar.writeValue((uint8_t *)&pkt, sizeof(pkt));
 
-  Serial.printf("TELE bR=%.2f bP=%.2f tR=%.2f tP=%.2f tmbR=%.2f tmbP=%.2f vA=%.2f seq=%u\n",
-    baseRoll, basePitch, topRoll, topPitch, topMinusBaseRoll, topMinusBasePitch, vectorAngle, topSeq);
+  Serial.print("TELE bR="); Serial.print(baseRoll,2);
+  Serial.print(" bP="); Serial.print(basePitch,2);
+  Serial.print(" tR="); Serial.print(topRoll,2);
+  Serial.print(" tP="); Serial.print(topPitch,2);
+  Serial.print(" tmbR="); Serial.print(topMinusBaseRoll,2);
+  Serial.print(" tmbP="); Serial.print(topMinusBasePitch,2);
+  Serial.print(" vA="); Serial.print(vectorAngle,2);
+  Serial.print(" seq="); Serial.println(topSeq);
+
 }
 
 // ===================== Top Node Connection (Auto) =====================
@@ -340,6 +347,10 @@ void readTopPacketIfAvailable() {
 
 void handleCommand(String cmd) {
   cmd.trim();
+  Serial.print("CMD received: [");
+  Serial.print(cmd);
+  Serial.print("] len=");
+  Serial.println(cmd.length());
   cmd.toUpperCase();
 
   if (cmd == "START") {
@@ -427,7 +438,9 @@ void loop() {
 
   // Handle incoming commands from ESP32 client
   if (commandChar.written()) {
-    handleCommand(commandChar.value());
+    String cmd = commandChar.value();
+    Serial.println(cmd);
+    handleCommand(cmd);
   }
 
   // Detect top node disconnection

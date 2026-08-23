@@ -2,7 +2,7 @@
 Packet layout (28 bytes total):
 
 struct __attribute__((packed)) PacketTemplate {
-  uint32_t header;          // offset 0,  4 bytes  ("TELE" as LE uint32)
+  uint32_t header;          // offset 0,  4 bytes  ("MAST" as LE uint32)
   uint16_t counter;         // offset 4,  2 bytes
   PayloadT payload;         // offset 6,  17 bytes (Telemetry_Payload)
   uint8_t padding[3];       // offset 23, 3 bytes
@@ -24,7 +24,29 @@ struct __attribute__((packed)) Telemetry_Payload {
 Checksum scope: bytes 4..25 (counter + payload + padding), excludes header and chksum fields.
 */
 
+const { write_to_clients } = require('../../client_transmission');
+const { insertIMUDataBulk, getLatestIMURunId } = require('../../../model/imu_db');
+
 const ANGLE_SCALE = 100.0;
+const BULK_INSERT_SIZE = 50; // Flush to DB every 50 samples (~5 seconds at 10Hz)
+
+const imuQueue = [];
+let imuRunId = null;
+let consuming = false;
+
+// Initialize run_id on first use
+async function ensureRunId() {
+    if (imuRunId === null) {
+        try {
+            const { run_id } = await getLatestIMURunId();
+            imuRunId = run_id;
+        } catch (err) {
+            console.error('[IMU] Failed to get run_id, defaulting to 1:', err.message);
+            imuRunId = 1;
+        }
+    }
+    return imuRunId;
+}
 
 function checksum16Bytes(buf) {
     let sum = 0;
@@ -34,7 +56,7 @@ function checksum16Bytes(buf) {
     return sum;
 }
 
-function parseTelemetryData(recvBuf, packet_bytes, packetSkipped = 0) {
+function parseIMUData(recvBuf, packet_bytes, packetSkipped = 0) {
     // Read fields
     const counter = recvBuf.readUInt16LE(4);
     const baseRollRaw = recvBuf.readInt16LE(6);
@@ -92,12 +114,60 @@ function parseTelemetryData(recvBuf, packet_bytes, packetSkipped = 0) {
         zeroReady
     };
 
-    // Console output for testing/verification
-    console.log(`[IMU] #${counter} bR=${baseRoll.toFixed(2)} bP=${basePitch.toFixed(2)} tR=${topRoll.toFixed(2)} tP=${topPitch.toFixed(2)} tmbR=${topMinusBaseRoll.toFixed(2)} tmbP=${topMinusBasePitch.toFixed(2)} vA=${vectorAngle.toFixed(2)} bend=${bendMagnitude.toFixed(2)} seq=${topSeq} top=${topConnected} sens=${sensingEnabled} zero=${zeroReady}`);
+    // Send to all connected frontend clients via SSE
+    write_to_clients("imu", telemetry);
+
+    // Queue for bulk DB insert
+    imuQueue.push(telemetry);
 
     return recvBuf.subarray(packet_bytes);
 }
 
+/**
+ * Flush the IMU queue to the database in bulk.
+ * Called from processBuffer in serialReader.js after IMU packets are processed.
+ */
+async function consumeIMUQueue() {
+    if (consuming || imuQueue.length === 0) return;
+    if (imuQueue.length < BULK_INSERT_SIZE) return; // Wait until we have enough
+
+    consuming = true;
+
+    try {
+        const runId = await ensureRunId();
+        const batch = imuQueue.splice(0, imuQueue.length);
+
+        // Attach run_id to each record
+        const records = batch.map(d => ({ ...d, run_id: runId }));
+        await insertIMUDataBulk(records);
+    } catch (err) {
+        console.error('[IMU] Bulk insert error:', err.message);
+    }
+
+    consuming = false;
+}
+
+/**
+ * Force flush remaining items (e.g., on shutdown or disconnect).
+ */
+async function flushIMUQueue() {
+    if (imuQueue.length === 0) return;
+    consuming = true;
+
+    try {
+        const runId = await ensureRunId();
+        const batch = imuQueue.splice(0, imuQueue.length);
+        const records = batch.map(d => ({ ...d, run_id: runId }));
+        await insertIMUDataBulk(records);
+    } catch (err) {
+        console.error('[IMU] Flush error:', err.message);
+    }
+
+    consuming = false;
+}
+
 module.exports = {
-    parseTelemetryData
+    parseIMUData,
+    consumeIMUQueue,
+    flushIMUQueue
 };

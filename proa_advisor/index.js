@@ -21,6 +21,8 @@ const process = require("node:process");
 const { add_client, get_clients, remove_client } = require("./handler/client_transmission");
 const { getCurrentRunId } = require("./lib/Kalman Filter/kalman_filter");
 const { populateInitalChartData } = require('./model/db');
+const { getIMUDataByRunId, getLatestIMURunId } = require('./model/imu_db');
+const { requestCommand } = require('./handler/serial_writer/serial_writer');
 const { startBackend } = require("./server");
 const { connectToWifi } = require("./handler/internet_connection/wifi_manager")
 const {  } = require("./handler/terminal_socket/ws");
@@ -98,6 +100,30 @@ app.get("/initial_power_data", async (req, res) => {
     } catch (error) {
         console.error("Error fetching initial data:", error);
         res.status(500).send("Error fetching initial data");
+    }
+});
+
+app.get("/initial_imu_data", async (req, res) => {
+    try {
+        const { run_id } = await getLatestIMURunId();
+        const data = await getIMUDataByRunId(run_id, 1000);
+        res.json(data);
+    } catch (error) {
+        console.error("Error fetching initial IMU data:", error);
+        res.status(500).send("Error fetching initial IMU data");
+    }
+});
+
+app.post("/send_command", middlewareAuth, (req, res) => {
+    const { macAddress, command } = req.body;
+    if (!macAddress || !command) {
+        return res.status(400).json({ message: "macAddress and command are required" });
+    }
+    const sent = requestCommand(macAddress, command);
+    if (sent) {
+        res.json({ ok: true, message: `Command '${command}' sent to ${macAddress}` });
+    } else {
+        res.status(503).json({ ok: false, message: "No serial port connected" });
     }
 });
 
