@@ -2,7 +2,6 @@ import type { ComponentType } from 'react';
 import InternetConnectivityTab from './Internet';
 import ConsoleTab from './Console Panel';
 import ServerManagementTab from './Server Management';
-import StrainCalibrationTab from './Strain Calibration';
 import DatabaseManagementTab from './Database';
  
 export interface SettingsTabItem {
@@ -15,5 +14,4 @@ export const settingsTabItems: SettingsTabItem[] = [
     { text: 'Console', component: ConsoleTab },
     { text: 'Server', component: ServerManagementTab },
     { text: 'Database', component: DatabaseManagementTab },
-    { text: 'Strain Calibration', component: StrainCalibrationTab },
 ];
