@@ -12,7 +12,7 @@ static constexpr uint8_t I2C_SCL_PIN = 22;
 
 // ---------- Debug ----------
 #define SHOW_SUCCESS  0
-#define LOGGING       1
+#define LOGGING       0
 // =======================
 // ESP-NOW CONFIG
 // =======================
@@ -243,10 +243,19 @@ void setupScale() {
 
 void setup() {
   Serial.begin(115200);
-  Serial.println("Started");
-  delay(300);
 
+  delay(500);
   WiFi.mode(WIFI_STA);
+
+  delay(100);
+  
+  uint64_t mac = ESP.getEfuseMac();
+
+  Serial.printf(
+    "Base MAC: %04X%08X\n",
+    (uint16_t)(mac >> 32),
+    (uint32_t)mac
+  );
 
   while (!init_ESP_NOW()) {
     delay(100);

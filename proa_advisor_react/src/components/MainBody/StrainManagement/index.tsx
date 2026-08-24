@@ -18,8 +18,8 @@ import '../../../data_type/strain';
 
 const ARRAY_LENGTH = 500;
 
-// MAC address of the strain ESP32 node (update to match your device)
-const STRAIN_NODE_MAC = "00:00:00:00:00:00";
+// MAC address of the strain ESP32 node
+const STRAIN_NODE_MAC = "B0:F0:CA:F4:E9:D4";
 
 function isAuthenticated(): boolean {
     const token = localStorage.getItem('token');
