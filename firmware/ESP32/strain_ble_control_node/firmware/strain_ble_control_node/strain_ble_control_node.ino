@@ -1,62 +1,138 @@
 #include <Arduino.h>
 #include <Wire.h>
-#include <BLEDevice.h>
-#include <BLEServer.h>
-#include <BLEUtils.h>
-#include <BLE2902.h>
+#include <esp_now.h>
+#include <esp_wifi.h>
+#include <WiFi.h>
 #include <Preferences.h>
 #include <SparkFun_Qwiic_Scale_NAU7802_Arduino_Library.h>
 
-// ---------- Hardware pins from your schematic ----------
+// ---------- Hardware pins ----------
 static constexpr uint8_t I2C_SDA_PIN = 21;
 static constexpr uint8_t I2C_SCL_PIN = 22;
 
-// ---------- BLE UUIDs ----------
-static const char *DEVICE_NAME   = "StrainNode-ESP32";
-static const char *SERVICE_UUID  = "7f4d1000-6f29-4ab8-89f7-6f4fb0f9b201";
-static const char *CTRL_UUID     = "7f4d1001-6f29-4ab8-89f7-6f4fb0f9b201"; // write commands
-static const char *DATA_UUID     = "7f4d1002-6f29-4ab8-89f7-6f4fb0f9b201"; // notify readings
-static const char *STATUS_UUID   = "7f4d1003-6f29-4ab8-89f7-6f4fb0f9b201"; // read/notify state
+// ---------- Debug ----------
+#define SHOW_SUCCESS  0
+#define LOGGING       0
+// =======================
+// ESP-NOW CONFIG
+// =======================
+
+// Master node MAC address
+uint8_t receiverAddr[] = { 0xac, 0xeb, 0xe6, 0x49, 0xc7, 0xcc };
+
+esp_now_peer_info_t peerInfo;
+
+// =======================
+// PACKET TEMPLATE (from template_sender_firmware)
+// =======================
+
+uint32_t str_to_u32(const char s[4]) {
+  return ((uint32_t)s[3] << 24) |
+         ((uint32_t)s[2] << 16) |
+         ((uint32_t)s[1] << 8)  |
+         ((uint32_t)s[0]);
+}
+
+uint16_t checksum16_bytes(const uint8_t *data, size_t len) {
+  uint16_t sum = 0;
+  for (size_t i = 0; i < len; i++) {
+    sum = (uint16_t)((sum << 1) ^ data[i] ^ (sum >> 15));
+  }
+  return sum;
+}
+
+template <typename PayloadT, size_t PAD_BYTES = 0>
+struct __attribute__((packed)) PacketTemplate {
+  uint32_t header;
+  uint16_t counter;
+  PayloadT payload;
+  uint8_t padding[PAD_BYTES];
+  uint16_t chksum;
+};
+
+template <typename PacketT>
+void clearPacket(PacketT &pkt) {
+  memset(&pkt, 0, sizeof(pkt));
+}
+
+template <typename PacketT>
+void finalizePacket(PacketT &pkt, uint32_t header, uint16_t counter) {
+  pkt.header = header;
+  pkt.counter = counter;
+  pkt.chksum = checksum16_bytes(
+    (const uint8_t *)&pkt,
+    sizeof(pkt) - sizeof(pkt.chksum)
+  );
+}
+
+template <typename PacketT>
+bool sendPacket(const PacketT &pkt) {
+  esp_err_t result = esp_now_send(receiverAddr, (const uint8_t *)&pkt, sizeof(pkt));
+
+  if (result != ESP_OK) {
+    taskYIELD();
+    result = esp_now_send(receiverAddr, (const uint8_t *)&pkt, sizeof(pkt));
+  }
+
+  if (result != ESP_OK) {
+    Serial.println("Failed to queue");
+    return false;
+  }
+
+#if SHOW_SUCCESS
+  Serial.println("Successfully queued for sending");
+#endif
+
+  return true;
+}
+
+void incrementCounter(uint16_t &counter) {
+  if (counter == 65535) {
+    counter = 1;
+  } else {
+    counter++;
+  }
+}
+
+// =======================
+// STRAIN PAYLOAD
+// =======================
+
+// 4 bytes payload + 16 bytes padding = 20 bytes data region
+// Total: header(4) + counter(2) + payload(4) + padding(16) + chksum(2) = 28 bytes
+struct __attribute__((packed)) StrainPayload {
+  int32_t adjustedReading;  // raw ADC minus zero offset
+};
+
+using StrainPacket = PacketTemplate<StrainPayload, 16>;
+
+uint32_t STRAIN_HEADER;
+uint16_t strainCounter = 1;
+
+// =======================
+// ESP-NOW CALLBACKS
+// =======================
+
+void onESPNowSent(const wifi_tx_info_t *tx_info, esp_now_send_status_t status) {
+#if SHOW_SUCCESS
+  if (status == ESP_NOW_SEND_SUCCESS) {
+    Serial.println("Delivery Success");
+  }
+#endif
+  if (status != ESP_NOW_SEND_SUCCESS) {
+    Serial.println("Delivery Fail");
+  }
+}
+
+// =======================
+// SCALE & STATE
+// =======================
 
 Preferences prefs;
 NAU7802 scale;
 
-BLEServer *bleServer = nullptr;
-BLECharacteristic *dataChar = nullptr;
-BLECharacteristic *statusChar = nullptr;
-
-bool bleClientConnected = false;
 bool sensingEnabled = false;
 uint8_t currentRate = NAU7802_SPS_20;
-unsigned long lastStatusPushMs = 0;
-
-String buildStatusLine() {
-  String s = "connected=";
-  s += bleClientConnected ? "1" : "0";
-  s += ",enabled=";
-  s += sensingEnabled ? "1" : "0";
-  s += ",rate=";
-  switch (currentRate) {
-    case NAU7802_SPS_10:  s += "10"; break;
-    case NAU7802_SPS_20:  s += "20"; break;
-    case NAU7802_SPS_40:  s += "40"; break;
-    case NAU7802_SPS_80:  s += "80"; break;
-    case NAU7802_SPS_320: s += "320"; break;
-    default: s += "?"; break;
-  }
-  s += ",zero=";
-  s += String(scale.getZeroOffset());
-  return s;
-}
-
-void pushStatus() {
-  if (!statusChar) return;
-  String msg = buildStatusLine();
-  statusChar->setValue(msg.c_str());
-  if (bleClientConnected) {
-    statusChar->notify();
-  }
-}
 
 bool setRateFromHz(int hz) {
   uint8_t rate = currentRate;
@@ -75,105 +151,65 @@ bool setRateFromHz(int hz) {
 
   currentRate = rate;
   prefs.putUInt("rate", hz);
-  pushStatus();
   return true;
 }
 
-void setSensingEnabled(bool enabled) {
-  sensingEnabled = enabled;
-  prefs.putBool("enabled", enabled);
-  pushStatus();
+// =======================
+// COMMAND RECEPTION (from master node)
+// =======================
+
+void OnDataRecv(const esp_now_recv_info_t *recv_info, const uint8_t *data, int len) {
+  String cmd = String((char *)data, len);
+  cmd.trim();
+  cmd.toUpperCase();
+
+  Serial.print("CMD received: ");
+  Serial.println(cmd);
+
+  if (cmd == "START") {
+    sensingEnabled = true;
+    prefs.putBool("enabled", true);
+  } else if (cmd == "STOP") {
+    sensingEnabled = false;
+    prefs.putBool("enabled", false);
+  } else if (cmd == "TARE") {
+    scale.calculateZeroOffset(16, 2000);
+    prefs.putLong("zero", scale.getZeroOffset());
+  } else if (cmd.startsWith("RATE:")) {
+    int hz = cmd.substring(5).toInt();
+    setRateFromHz(hz);
+  }
 }
 
-class ServerCallbacks : public BLEServerCallbacks {
-  void onConnect(BLEServer *pServer) override {
-    bleClientConnected = true;
-    pushStatus();
-    Serial.println("BLE client connected");
+// =======================
+// ESP-NOW SETUP
+// =======================
+
+bool init_ESP_NOW() {
+  if (esp_now_init() != ESP_OK) {
+    Serial.println("ESP-NOW failed to initialise");
+    return false;
   }
 
-  void onDisconnect(BLEServer *pServer) override {
-    bleClientConnected = false;
-    Serial.println("BLE client disconnected");
-    delay(100);
-    BLEDevice::startAdvertising();
+  esp_now_register_send_cb(onESPNowSent);
+  esp_now_register_recv_cb(OnDataRecv);
+
+  memset(&peerInfo, 0, sizeof(peerInfo));
+  memcpy(peerInfo.peer_addr, receiverAddr, 6);
+  peerInfo.channel = 0;
+  peerInfo.encrypt = false;
+
+  if (esp_now_add_peer(&peerInfo) != ESP_OK) {
+    Serial.println("Failed to add receiving device");
+    return false;
   }
-};
 
-class ControlCallbacks : public BLECharacteristicCallbacks {
-  void onWrite(BLECharacteristic *characteristic) override {
-    std::string rx = characteristic->getValue();
-    if (rx.empty()) return;
-
-    String cmd = String(rx.c_str());
-    cmd.trim();
-    cmd.toUpperCase();
-
-    Serial.print("CTRL command: ");
-    Serial.println(cmd);
-
-    if (cmd == "START") {
-      setSensingEnabled(true);
-      return;
-    }
-
-    if (cmd == "STOP") {
-      setSensingEnabled(false);
-      return;
-    }
-
-    if (cmd == "TARE") {
-      scale.calculateZeroOffset(16, 2000);
-      prefs.putLong("zero", scale.getZeroOffset());
-      pushStatus();
-      return;
-    }
-
-    if (cmd == "STATUS") {
-      pushStatus();
-      return;
-    }
-
-    if (cmd.startsWith("RATE:")) {
-      int hz = cmd.substring(5).toInt();
-      setRateFromHz(hz);
-      return;
-    }
-  }
-};
-
-void setupBle() {
-  BLEDevice::init(DEVICE_NAME);
-  bleServer = BLEDevice::createServer();
-  bleServer->setCallbacks(new ServerCallbacks());
-
-  BLEService *service = bleServer->createService(SERVICE_UUID);
-
-  BLECharacteristic *ctrlChar = service->createCharacteristic(
-      CTRL_UUID,
-      BLECharacteristic::PROPERTY_WRITE | BLECharacteristic::PROPERTY_WRITE_NR);
-  ctrlChar->setCallbacks(new ControlCallbacks());
-
-  dataChar = service->createCharacteristic(
-      DATA_UUID,
-      BLECharacteristic::PROPERTY_NOTIFY);
-  dataChar->addDescriptor(new BLE2902());
-
-  statusChar = service->createCharacteristic(
-      STATUS_UUID,
-      BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY);
-  statusChar->addDescriptor(new BLE2902());
-  statusChar->setValue("booting");
-
-  service->start();
-
-  BLEAdvertising *advertising = BLEDevice::getAdvertising();
-  advertising->addServiceUUID(SERVICE_UUID);
-  advertising->setScanResponse(true);
-  advertising->setMinPreferred(0x06);
-  advertising->setMinPreferred(0x12);
-  BLEDevice::startAdvertising();
+  return true;
 }
+
+// =======================
+// SCALE SETUP
+// =======================
 
 void setupScale() {
   Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);
@@ -201,37 +237,69 @@ void setupScale() {
   }
 }
 
+// =======================
+// SETUP
+// =======================
+
 void setup() {
   Serial.begin(115200);
-  delay(300);
-  Serial.println();
-  Serial.println("Booting StrainNode-ESP32");
+
+  delay(500);
+  WiFi.mode(WIFI_STA);
+
+  delay(100);
+  
+  uint64_t mac = ESP.getEfuseMac();
+
+  Serial.printf(
+    "Base MAC: %04X%08X\n",
+    (uint16_t)(mac >> 32),
+    (uint32_t)mac
+  );
+
+  while (!init_ESP_NOW()) {
+    delay(100);
+  }
 
   prefs.begin("strainnode", false);
-  sensingEnabled = prefs.getBool("enabled", false);
+  sensingEnabled = prefs.getBool("enabled", true);
 
   setupScale();
-  setupBle();
-  pushStatus();
 
-  Serial.println("Ready. Use BLE control commands: START, STOP, TARE, STATUS, RATE:<10|20|40|80|320>");
+  STRAIN_HEADER = str_to_u32("STRN");
+
+  Serial.println("StrainNode ESP-NOW ready");
+  Serial.print("Packet size: ");
+  Serial.println(sizeof(StrainPacket));
 }
 
+// =======================
+// LOOP
+// =======================
+
 void loop() {
-  if (sensingEnabled && bleClientConnected && scale.available()) {
+  if (sensingEnabled && scale.available()) {
     int32_t raw = scale.getReading();
     int32_t adjusted = raw - scale.getZeroOffset();
 
-    char payload[20];
-    snprintf(payload, sizeof(payload), "%ld", (long)adjusted);
-    dataChar->setValue((uint8_t *)payload, strlen(payload));
-    dataChar->notify();
+    StrainPacket pkt;
+    clearPacket(pkt);
+
+    pkt.payload.adjustedReading = adjusted;
+
+#if LOGGING
+    Serial.print("\nReading: ");
+    Serial.print(adjusted);
+    Serial.print("  Raw: ");
+    Serial.print("Reading: ");
+    Serial.println(raw);
+#endif
+
+    finalizePacket(pkt, STRAIN_HEADER, strainCounter);
+    incrementCounter(strainCounter);
+
+    sendPacket(pkt);
   }
 
-  if (millis() - lastStatusPushMs > 3000) {
-    lastStatusPushMs = millis();
-    pushStatus();
-  }
-
-  delay(2);
+  taskYIELD();
 }

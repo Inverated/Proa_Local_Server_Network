@@ -21,7 +21,12 @@ const process = require("node:process");
 const { add_client, get_clients, remove_client } = require("./handler/client_transmission");
 const { getCurrentRunId } = require("./lib/Kalman Filter/kalman_filter");
 const { populateInitalChartData } = require('./model/db');
-const { getIMUDataByRunId, getLatestIMURunId } = require('./model/imu_db');
+const { getIMUDataByRunId } = require('./model/imu_db');
+const { getStrainDataByRunId } = require('./model/strain_db');
+// Same pattern as getCurrentRunId for power: the run_id is owned by the writer
+// and shared, not re-derived per request.
+const { getCurrentIMURunId } = require("./handler/serial_reader/components/imu_data_parser");
+const { getCurrentStrainRunId } = require("./handler/serial_reader/components/strain_data_parser");
 const { requestCommand } = require('./handler/serial_writer/serial_writer');
 const { startBackend } = require("./server");
 const { connectToWifi } = require("./handler/internet_connection/wifi_manager")
@@ -30,7 +35,7 @@ const { hasInternet } = require("./handler/database_update/connectivity");
 const { switchMode } = require("./handler/switch_env_mode");
 const { closeAllConnections } = require("./handler/terminal_socket/ws");
 const { updateRepo } = require("./handler/repository/simple_git");
-const { streamSOCSensorCsvByRun, normalizeRowId, normalizeRunId, getSOCSensorRunSummaries, DownloadInProgressError } = require("./handler/database_download");
+const { streamSOCSensorCsvByRun, streamSensorCsvByRun, normalizeRowId, normalizeRunId, normalizeSensorKey, getSOCSensorRunSummaries, getRunSummaries, getSensorLabel, DownloadInProgressError } = require("./handler/database_download");
 startBackend(); 
 
 
@@ -105,12 +110,23 @@ app.get("/initial_power_data", async (req, res) => {
 
 app.get("/initial_imu_data", async (req, res) => {
     try {
-        const { run_id } = await getLatestIMURunId();
+        const run_id = await getCurrentIMURunId();
         const data = await getIMUDataByRunId(run_id, 1000);
         res.json(data);
     } catch (error) {
         console.error("Error fetching initial IMU data:", error);
         res.status(500).send("Error fetching initial IMU data");
+    }
+});
+
+app.get("/initial_strain_data", async (req, res) => {
+    try {
+        const run_id = await getCurrentStrainRunId();
+        const data = await getStrainDataByRunId(run_id, 2000);
+        res.json(data);
+    } catch (error) {
+        console.error("Error fetching initial strain data:", error);
+        res.status(500).send("Error fetching initial strain data");
     }
 });
 
@@ -271,6 +287,47 @@ app.get("/download_socsensor", middlewareAuth, async (req, res) => {
         }
         if (!res.headersSent) {
             return res.status(500).json({ message: "Failed to download SOCSensor data." });
+        }
+        if (!res.writableEnded) {
+            res.end();
+        }
+    }
+});
+
+// Generic per-sensor equivalents of the two routes above. Each sensor stream has
+// its own run_id counter, so the type has to be part of every request.
+app.get("/sensor_runs", middlewareAuth, async (req, res) => {
+    try {
+        const sensorKey = normalizeSensorKey(req.query.type);
+        const runs = await getRunSummaries(sensorKey);
+        res.status(200).json({ type: sensorKey, label: getSensorLabel(sensorKey), runs });
+    } catch (error) {
+        if (error?.message?.startsWith("sensor type must be one of")) {
+            return res.status(400).json({ message: error.message });
+        }
+        res.status(500).json({ message: "Failed to load sensor run list." });
+    }
+});
+
+app.get("/download_sensor", middlewareAuth, async (req, res) => {
+    let sensorLabel = "sensor";
+    try {
+        const sensorKey = normalizeSensorKey(req.query.type);
+        sensorLabel = getSensorLabel(sensorKey);
+        const runId = normalizeRunId(req.query.run_id);
+        const rowId = normalizeRowId(req.query.rowid ?? req.query.start_rowid);
+        await streamSensorCsvByRun(req, res, sensorKey, runId, rowId);
+    } catch (error) {
+        if (error instanceof DownloadInProgressError) {
+            return res.status(error.statusCode).json({ message: error.message });
+        }
+        if (error?.message === "rowid must be a non-negative integer."
+            || error?.message === "run_id must be a positive integer."
+            || error?.message?.startsWith("sensor type must be one of")) {
+            return res.status(400).json({ message: error.message });
+        }
+        if (!res.headersSent) {
+            return res.status(500).json({ message: `Failed to download ${sensorLabel} data.` });
         }
         if (!res.writableEnded) {
             res.end();

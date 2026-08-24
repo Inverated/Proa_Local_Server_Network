@@ -14,6 +14,23 @@
     margin: 0;
 }
 
+/* One block per sensor stream (Power / IMU / Strain). */
+.database-sensor-block {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+.database-sensor-section {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
 .database-run-selector {
     width: 70%;
     display: flex;

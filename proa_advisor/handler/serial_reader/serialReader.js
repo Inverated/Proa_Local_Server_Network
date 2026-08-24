@@ -3,7 +3,8 @@ const { ReadlineParser } = require('@serialport/parser-readline');
 const { onNewSample } = require("../../lib/Kalman Filter/kalman_filter")
 const { parsePowerData, consumePowerQueue } = require('./components/power_data_parser');
 const { parseSensorPowerData } = require('./components/sensor_power_parser');
-const { parseIMUData, consumeIMUQueue } = require('./components/imu_data_parser');
+const { parseIMUData, consumeIMUQueue, flushIMUQueue } = require('./components/imu_data_parser');
+const { parseStrainData, consumeStrainQueue, flushStrainQueue } = require('./components/strain_data_parser');
  
 const PACKET_BYTES = 4 + 2 + 4 + (8 * 2) + 2; // Fix at 28 bytes
 const POWER_HEADER = 'PWER';
@@ -17,6 +18,10 @@ const SENSOR_HEADER_INT = SENSOR_HEADER_BUFFER.readUInt32LE(0);
 const IMU_HEADER = 'MAST';
 const IMU_HEADER_BUFFER = Buffer.from(IMU_HEADER, 'ascii');
 const IMU_HEADER_INT = IMU_HEADER_BUFFER.readUInt32LE(0);
+
+const STRAIN_HEADER = 'STRN';
+const STRAIN_HEADER_BUFFER = Buffer.from(STRAIN_HEADER, 'ascii');
+const STRAIN_HEADER_INT = STRAIN_HEADER_BUFFER.readUInt32LE(0);
 
 let connectedPort = null;
 function getConnectedPort() {
@@ -70,7 +75,7 @@ async function findValidPort(baudRate = 2000000, timeoutMs = 2000) {
                 } else if (line && line.includes('ADC Ready')) {
                     return { port, path: portInfo.path };
                 } else if (line && line.includes(POWER_HEADER) || line.includes(SENSOR_HEADER)
-                    || line.includes(IMU_HEADER)) {
+                    || line.includes(IMU_HEADER) || line.includes(STRAIN_HEADER)) {
                     return { port, path: portInfo.path };
                 }
                 console.log(`Attempt ${attempt + 1}/3: No valid response from ${portInfo.path}`);
@@ -134,7 +139,19 @@ function processBuffer() {
                 recvBuf = result;
                 packetSkipped = 0;
             }
-        } else { // add on for more type
+        } else if (headerType === STRAIN_HEADER_INT) {
+            //console.log("Strain");
+            if (recvBuf.length < PACKET_BYTES) break;
+            const result = parseStrainData(recvBuf, PACKET_BYTES, packetSkipped);
+            if (!result) {
+                packetSkipped++;
+                recvBuf = recvBuf.subarray(1);
+                continue;
+            } else {
+                recvBuf = result;
+                packetSkipped = 0;
+            }
+        } else {
             recvBuf = recvBuf.subarray(1); // Advance one byte to re-sync
             packetSkipped++;
             continue;
@@ -142,7 +159,12 @@ function processBuffer() {
     }
     if (headerType === POWER_HEADER_INT) {
         consumePowerQueue();
-    }// add  on for more type / run consume queue for all
+    }
+    // IMU and strain queues are drained unconditionally: each consumer is a
+    // no-op until its batch threshold is reached, and gating them on the last
+    // header seen meant their samples were never written to the DB.
+    consumeIMUQueue();
+    consumeStrainQueue();
 }
 
 async function startSerialReader() {
@@ -175,6 +197,10 @@ async function startSerialReader() {
     port.on('close', () => {
         console.warn(`Port ${path} closed. Rescanning...`);
         recvBuf = Buffer.alloc(0); // Clear buffer on disconnect
+        // Persist whatever is still queued below the batch threshold so a
+        // disconnect does not silently drop the tail of the run.
+        flushIMUQueue();
+        flushStrainQueue();
         setTimeout(startSerialReader, 5000);
     });
 

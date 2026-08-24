@@ -12,11 +12,12 @@ import TextField from '@mui/material/TextField';
 import Stack from '@mui/material/Stack';
 import Alert from '@mui/material/Alert';
 import { jwtDecode } from "jwt-decode";
+import { resolveTimeMs } from "../recovery_time";
 import '../../../data_type/imu';
 
 const ARRAY_LENGTH = 500;
 
-// MAC address of the combined ESP32 node (update to match your device)
+// MAC address of the combined ESP32 node
 const IMU_NODE_MAC = "88:56:A6:6C:F0:04";
 
 function StatusChip({ label, active }: { label: string; active: boolean }) {
@@ -92,19 +93,20 @@ export default function MastMonitor({ data }: { data: IMUData | null }) {
         };
     }, []);
 
-    // Fetch initial historical data on mount
+    // Fetch initial historical data on mount. Switching tabs unmounts this
+    // component, so this also restores the chart when the tab is reopened.
     useEffect(() => {
         if (xData.length === 0) {
             const fetchInitialData = async () => {
                 try {
                     const response = await fetch("/initial_imu_data");
-                    const initialData: IMUData[] = await response.json();
+                    const initialData: IMUReading[] = await response.json();
                     populateInitialData(initialData);
                 } catch (error) {
                     console.log("Falling back to localhost for initial IMU data.");
                     try {
                         const response = await fetch("http://localhost:4000/initial_imu_data");
-                        const initialData: IMUData[] = await response.json();
+                        const initialData: IMUReading[] = await response.json();
                         populateInitialData(initialData);
                     } catch (err) {
                         console.error("Fallback fetch failed:", err);
@@ -115,7 +117,7 @@ export default function MastMonitor({ data }: { data: IMUData | null }) {
         }
     }, []);
 
-    function populateInitialData(initialData: IMUData[]) {
+    function populateInitialData(initialData: IMUReading[]) {
         let defaultLength = ARRAY_LENGTH;
         if (localStorage.getItem("imuDisplayDataLength")) {
             defaultLength = parseInt(localStorage.getItem("imuDisplayDataLength") || "");
@@ -132,8 +134,12 @@ export default function MastMonitor({ data }: { data: IMUData | null }) {
             const tmbrArr: number[] = [];
             const tmbpArr: number[] = [];
 
+            // Rebuild the x-axis from the stored host receive time rather than
+            // assuming a fixed 10Hz rate.
+            const baseMs = resolveTimeMs(initialData[0], 0);
+
             initialData.forEach((d, i) => {
-                xArr.push(i * 0.1); // Approximate: 10Hz = 0.1s per sample
+                xArr.push((resolveTimeMs(d, i) - baseMs) / 1000);
                 bendArr.push(d.bendMagnitude);
                 vaArr.push(d.vectorAngle);
                 brArr.push(d.baseRoll);

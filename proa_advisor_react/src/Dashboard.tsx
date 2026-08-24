@@ -28,6 +28,7 @@ import MessageBlock from './components/FloatingMessage/MessageBlock';
 import './data_type/message';
 import './data_type/power';
 import './data_type/imu';
+import './data_type/strain';
 
 
 const xThemeComponents = {
@@ -42,7 +43,7 @@ export default function Dashboard(props: { disableCustomTheme?: boolean }) {
     const [mainContent, setMainContent] = useState(0);
     const [powerData, setPowerData] = useState<PowerData | null>(null);
     const [messages, setMessages] = useState<MessageData[]>([]);  // For floating messages
-    const [strainData, setStrainData] = useState<null>(null);  // To be implemented
+    const [strainData, setStrainData] = useState<StrainData | null>(null);
     const [imuData, setImuData] = useState<IMUData | null>(null);
 
     useEffect(() => {
@@ -133,7 +134,7 @@ export default function Dashboard(props: { disableCustomTheme?: boolean }) {
                             {mainContent === -1 ? MainGrid() :
                                 mainContent === 0 ? <Overview powerData={powerData} strainData={strainData} /> :
                                     mainContent === 1 ? <PowerManagement data={powerData} /> :
-                                        mainContent === 2 ? <StrainManagement /> :
+                                        mainContent === 2 ? <StrainManagement data={strainData} /> :
                                             mainContent === 3 ? <MastMonitor data={imuData} /> :
                                                 mainContent === 4 ? <DevPanel /> :
                                                     mainContent === 5 ? <Settings /> :
