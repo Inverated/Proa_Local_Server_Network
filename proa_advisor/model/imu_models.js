@@ -1,4 +1,5 @@
 const { getDB } = require('./power_management_models');
+const { ensureColumn } = require('./schema_utils');
 
 let tableInitialized = false;
 
@@ -23,15 +24,16 @@ function initializeIMUTable() {
                     topConnected INTEGER,
                     sensingEnabled INTEGER,
                     zeroReady INTEGER,
+                    recv_ms INTEGER,
                     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
             `, (err) => {
                 if (err) {
                     console.error('Error creating IMUReadings table:', err.message);
                     reject(err);
-                } else {
-                    tableInitialized = true;
+                    return;
                 }
+                tableInitialized = true;
             });
 
             db.run(`
@@ -40,9 +42,13 @@ function initializeIMUTable() {
             `, (err) => {
                 if (err) {
                     console.error('Error creating IMUReadings index:', err.message);
-                } else {
-                    resolve();
+                    reject(err);
+                    return;
                 }
+                // Databases created before recv_ms existed need the column backfilled.
+                ensureColumn('IMUReadings', 'recv_ms', 'INTEGER')
+                    .then(() => resolve())
+                    .catch(reject);
             });
         });
     });

@@ -30,22 +30,60 @@ const { insertIMUDataBulk, getLatestIMURunId } = require('../../../model/imu_db'
 const ANGLE_SCALE = 100.0;
 const BULK_INSERT_SIZE = 50; // Flush to DB every 50 samples (~5 seconds at 10Hz)
 
+// Backstop for the size threshold so samples are never held longer than this,
+// which also keeps the run_id gap heuristic reading a fresh newest-row timestamp.
+const FLUSH_INTERVAL_MS = 2000;
+
+const MAX_QUEUE = 5000;
+
 const imuQueue = [];
 let imuRunId = null;
+let runIdPromise = null;
 let consuming = false;
+let flushTimer = null;
 
-// Initialize run_id on first use
-async function ensureRunId() {
-    if (imuRunId === null) {
-        try {
-            const { run_id } = await getLatestIMURunId();
-            imuRunId = run_id;
-        } catch (err) {
-            console.error('[IMU] Failed to get run_id, defaulting to 1:', err.message);
-            imuRunId = 1;
-        }
+/**
+ * Resolve the run_id for this session once and share it.
+ *
+ * Mirrors the power path: kalman_filter.js caches current_run_id and
+ * getCurrentRunId() hands that same value to /initial_power_data, so the writer
+ * and the recovery endpoint can never disagree. Re-deriving it per request (the
+ * previous behaviour) let the 5-minute gap heuristic hand the endpoint a
+ * run_id + 1 that has no rows, which returned an empty chart.
+ *
+ * The in-flight promise is shared so concurrent callers cannot each allocate.
+ */
+async function getCurrentIMURunId() {
+    if (imuRunId !== null) return imuRunId;
+    if (!runIdPromise) {
+        runIdPromise = getLatestIMURunId()
+            .then(({ run_id, is_new }) => {
+                imuRunId = run_id;
+                console.log(`[IMU] Current run_id: ${run_id}, is_new: ${is_new}`);
+                return run_id;
+            })
+            .catch((err) => {
+                console.error('[IMU] Failed to resolve run_id, defaulting to 1:', err.message);
+                imuRunId = 1;
+                return 1;
+            });
     }
-    return imuRunId;
+    return runIdPromise;
+}
+
+/**
+ * Start the periodic flush once data actually starts arriving.
+ *
+ * The timer only kicks a flush off, it is never awaited by the serial path, and
+ * consumeIMUQueue is a no-op when a flush is already running or the queue is
+ * empty. unref() keeps it from holding the process open.
+ */
+function ensureFlushTimer() {
+    if (flushTimer) return;
+    flushTimer = setInterval(() => {
+        consumeIMUQueue(true);
+    }, FLUSH_INTERVAL_MS);
+    flushTimer.unref?.();
 }
 
 function checksum16Bytes(buf) {
@@ -117,57 +155,57 @@ function parseIMUData(recvBuf, packet_bytes, packetSkipped = 0) {
     // Send to all connected frontend clients via SSE
     write_to_clients("imu", telemetry);
 
-    // Queue for bulk DB insert
-    imuQueue.push(telemetry);
+    // Queue for bulk DB insert. recv_ms is the host receive time, stored so the
+    // chart x-axis can be rebuilt on recovery instead of assuming a fixed rate.
+    imuQueue.push({ ...telemetry, recv_ms: Date.now() });
+    ensureFlushTimer();
 
     return recvBuf.subarray(packet_bytes);
 }
 
 /**
  * Flush the IMU queue to the database in bulk.
- * Called from processBuffer in serialReader.js after IMU packets are processed.
+ *
+ * Called (never awaited) from processBuffer in serialReader.js and from the
+ * periodic timer. Returns immediately when a flush is already in flight, so the
+ * serial reader never waits on the disk and a slow write cannot back up.
+ *
+ * @param {boolean} force Ignore the batch size threshold (timer / shutdown path)
  */
-async function consumeIMUQueue() {
+async function consumeIMUQueue(force = false) {
     if (consuming || imuQueue.length === 0) return;
-    if (imuQueue.length < BULK_INSERT_SIZE) return; // Wait until we have enough
+    if (!force && imuQueue.length < BULK_INSERT_SIZE) return; // Wait until we have enough
 
     consuming = true;
+    const batch = imuQueue.splice(0, imuQueue.length);
 
     try {
-        const runId = await ensureRunId();
-        const batch = imuQueue.splice(0, imuQueue.length);
-
-        // Attach run_id to each record
-        const records = batch.map(d => ({ ...d, run_id: runId }));
-        await insertIMUDataBulk(records);
+        const runId = await getCurrentIMURunId();
+        await insertIMUDataBulk(batch.map(d => ({ ...d, run_id: runId })));
     } catch (err) {
         console.error('[IMU] Bulk insert error:', err.message);
+        // Requeue so a transient failure retries on the next flush, but drop the
+        // batch once the backlog is past the cap rather than growing forever.
+        if (imuQueue.length + batch.length <= MAX_QUEUE) {
+            imuQueue.unshift(...batch);
+        } else {
+            console.error(`[IMU] Backlog over ${MAX_QUEUE}, dropping ${batch.length} rows.`);
+        }
+    } finally {
+        consuming = false;
     }
-
-    consuming = false;
 }
 
 /**
  * Force flush remaining items (e.g., on shutdown or disconnect).
  */
 async function flushIMUQueue() {
-    if (imuQueue.length === 0) return;
-    consuming = true;
-
-    try {
-        const runId = await ensureRunId();
-        const batch = imuQueue.splice(0, imuQueue.length);
-        const records = batch.map(d => ({ ...d, run_id: runId }));
-        await insertIMUDataBulk(records);
-    } catch (err) {
-        console.error('[IMU] Flush error:', err.message);
-    }
-
-    consuming = false;
+    return consumeIMUQueue(true);
 }
 
 module.exports = {
     parseIMUData,
     consumeIMUQueue,
-    flushIMUQueue
+    flushIMUQueue,
+    getCurrentIMURunId
 };

@@ -5,6 +5,7 @@ const HARD_STOP_SUPABASE = true;
 
 const { startDB, insertBatteryState } = require('./model/power_management_models');
 const { initializeIMUTable } = require('./model/imu_models');
+const { initializeStrainTable } = require('./model/strain_models');
 const { run_test } = require("./lib/Kalman Filter/ekf_test")
 const { getCurrentRunId, setAlternateBatteryType, setMainBatteryType } = require("./lib/Kalman Filter/kalman_filter");
 const { startSerialReader } = require('./handler/serial_reader/serialReader');
@@ -18,6 +19,8 @@ function startBackend() {
 
     startDB().then(() => {
         return initializeIMUTable();
+    }).then(() => {
+        return initializeStrainTable();
     }).then(() => {
         //return insertBatteryState(battery_type = "LiNMC", tableName = "MainRCMapping", override = OVERRIDE_DB);
         setMainBatteryType(process.env.MAIN_BATTERY_TYPE);
@@ -37,6 +40,13 @@ function startBackend() {
         } else {
             startSerialReader();
         }
+    }).catch((err) => {
+        // Without this a rejection anywhere in the chain (e.g. a failed table
+        // creation) was an unhandled rejection: the serial reader silently never
+        // started and nothing was logged.
+        console.error("\n//====================================================//\nBackend startup failed:", err && err.message ? err.message : err);
+        console.error(err && err.stack ? err.stack : '');
+        console.error("//====================================================//\n");
     });
 }
 
