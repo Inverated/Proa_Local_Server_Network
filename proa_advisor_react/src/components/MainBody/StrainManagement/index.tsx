@@ -14,6 +14,7 @@ import MenuItem from '@mui/material/MenuItem';
 import FormControl from '@mui/material/FormControl';
 import InputLabel from '@mui/material/InputLabel';
 import { jwtDecode } from "jwt-decode";
+import { resolveTimeMs } from "../recovery_time";
 import '../../../data_type/strain';
 
 const ARRAY_LENGTH = 500;
@@ -63,6 +64,60 @@ export default function StrainManagement({ data }: { data: StrainData | null }) 
             clearInterval(interval);
         };
     }, []);
+
+    // Fetch initial historical data on mount. Switching tabs unmounts this
+    // component, so this also restores the chart when the tab is reopened.
+    useEffect(() => {
+        if (xData.length === 0) {
+            const fetchInitialData = async () => {
+                try {
+                    const response = await fetch("/initial_strain_data");
+                    const initialData: StrainReading[] = await response.json();
+                    populateInitialData(initialData);
+                } catch (error) {
+                    console.log("Falling back to localhost for initial strain data.");
+                    try {
+                        const response = await fetch("http://localhost:4000/initial_strain_data");
+                        const initialData: StrainReading[] = await response.json();
+                        populateInitialData(initialData);
+                    } catch (err) {
+                        console.error("Fallback fetch failed:", err);
+                    }
+                }
+            };
+            fetchInitialData();
+        }
+    }, []);
+
+    function populateInitialData(initialData: StrainReading[]) {
+        let defaultLength = ARRAY_LENGTH;
+        const saved = localStorage.getItem("strainDisplayDataLength");
+        if (saved) {
+            defaultLength = parseInt(saved);
+            setDisplayDataLength(defaultLength);
+        }
+        if (!initialData || initialData.length === 0) return;
+
+        // Rebuild the x-axis from the stored host receive time so the spacing
+        // reflects the node's actual sample rate (configurable 10-320 SPS).
+        // Rows written before recv_ms existed fall back to the 1s timestamp.
+        const baseMs = resolveTimeMs(initialData[0], 0);
+        const xArr: number[] = [];
+        const readingArr: number[] = [];
+
+        initialData.forEach((d, i) => {
+            xArr.push((resolveTimeMs(d, i) - baseMs) / 1000);
+            readingArr.push(d.adjustedReading);
+        });
+
+        setXData(xArr.slice(-defaultLength));
+        setReadings(readingArr.slice(-defaultLength));
+
+        // Rebase startTime so live data continues the series instead of
+        // restarting the x-axis at zero.
+        const lastTime = xArr[xArr.length - 1] || 0;
+        startTime.current = Date.now() - lastTime * 1000;
+    }
 
     // Append live data
     useEffect(() => {
@@ -121,14 +176,14 @@ export default function StrainManagement({ data }: { data: StrainData | null }) 
                     <Box sx={{ display: 'flex', justifyContent: 'space-around', flexWrap: 'wrap', gap: 2 }}>
                         <Box sx={{ textAlign: 'center', minWidth: 150 }}>
                             <Typography variant="caption" color="text.secondary">Adjusted Reading</Typography>
-                            <Typography variant="h4" fontWeight="bold">
+                            <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
                                 {data?.adjustedReading !== undefined ? data.adjustedReading : "--"}
                             </Typography>
                             <Typography variant="caption" color="text.secondary">raw ADC counts</Typography>
                         </Box>
                         <Box sx={{ textAlign: 'center', minWidth: 100 }}>
                             <Typography variant="caption" color="text.secondary">Packet Counter</Typography>
-                            <Typography variant="h5" fontWeight="bold">
+                            <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
                                 {data?.counter !== undefined ? data.counter : "--"}
                             </Typography>
                         </Box>
@@ -167,7 +222,7 @@ export default function StrainManagement({ data }: { data: StrainData | null }) 
                         </Stack>
 
                         {/* Sample rate control */}
-                        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
+                        <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 2 }}>
                             <FormControl size="small" sx={{ minWidth: 120 }}>
                                 <InputLabel>Sample Rate</InputLabel>
                                 <Select

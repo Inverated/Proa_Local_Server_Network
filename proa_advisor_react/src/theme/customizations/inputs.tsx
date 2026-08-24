@@ -8,6 +8,36 @@ import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import RemoveRoundedIcon from '@mui/icons-material/RemoveRounded';
 import { gray, brand } from '../themePrimitives';
 
+/**
+ * Shared disabled appearance for the filled (contained) button variants.
+ *
+ * Those variants paint themselves with `backgroundImage: linear-gradient(...)`.
+ * MUI's built-in `.Mui-disabled` rule only overrides `background-color`, so the
+ * gradient survived while the label switched to the muted disabled colour -
+ * dark text on a near-black button, unreadable in light mode.
+ *
+ * Clearing `backgroundImage` and dropping to a pale background makes "disabled"
+ * read at a glance and keeps the label legible. The colours are set explicitly
+ * because this theme's `palette.action` only defines `hover` and `selected`, so
+ * MUI would otherwise fall back to its own low-opacity black defaults.
+ */
+const disabledContained = (theme: Theme) => ({
+  '&.Mui-disabled': {
+    color: gray[500],
+    backgroundColor: gray[100],
+    backgroundImage: 'none',
+    boxShadow: 'none',
+    borderColor: gray[200],
+    ...theme.applyStyles('dark', {
+      color: gray[400],
+      backgroundColor: gray[700],
+      backgroundImage: 'none',
+      boxShadow: 'none',
+      borderColor: gray[600],
+    }),
+  },
+});
+
 /* eslint-disable import/prefer-default-export */
 export const inputsCustomizations: Components<Theme> = {
   MuiButtonBase: {
@@ -84,6 +114,7 @@ export const inputsCustomizations: Components<Theme> = {
                   backgroundColor: gray[400],
                 },
               }),
+              ...disabledContained(theme),
             },
           },
           {
@@ -105,6 +136,7 @@ export const inputsCustomizations: Components<Theme> = {
                 backgroundColor: brand[700],
                 backgroundImage: 'none',
               },
+              ...disabledContained(theme),
             },
           },
           {
