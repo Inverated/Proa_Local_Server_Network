@@ -201,6 +201,8 @@ void onESPNowRecv(const esp_now_recv_info_t *info, const uint8_t *incomingData, 
 #if LOGGING
   Serial.printf("ESP-NOW cmd recv: %s\n", commandBuffer);
 #endif
+  Serial.printf("ESP-NOW cmd recv: %s\n", commandBuffer);
+
 }
 
 bool init_ESP_NOW() {
@@ -494,15 +496,6 @@ void setup() {
   Serial.begin(115200);
   delay(500);
 
-#if LOGGING
-  Serial.println();
-  Serial.println("================================================");
-  Serial.println("  Combined Node: Mast BLE + Power Sensor");
-  Serial.println("  ESP-NOW headers: MAST / SENS");
-  Serial.println("================================================");
-  Serial.println();
-#endif
-
   // --- WiFi + ESP-NOW ---
   WiFi.mode(WIFI_STA);
   Serial.print("ESP32 MAC Address: ");
@@ -549,15 +542,6 @@ void setup() {
   // --- BLE Client (non-blocking: continues if not found) ---
   BLEDevice::init("ESP32_COMBINED_NODE");
   startBleScan();
-
-#if LOGGING
-  Serial.printf("BLE target: %s\n", TARGET_DEVICE_NAME);
-  Serial.println();
-  Serial.println("Commands (ESP-NOW from master or Serial):");
-  Serial.println("  START | STOP | ZERO | RESET_ZERO");
-  Serial.println();
-  Serial.println("=== Setup complete ===\n");
-#endif
 }
 
 // =======================
@@ -580,19 +564,12 @@ void loop() {
     doConnect = false;
   }
 
-  // Re-scan BLE if disconnected
   if (!bleConnected && doScan && millis() - lastScanAttempt > BLE_RECONNECT_MS) {
     lastScanAttempt = millis();
     startBleScan();
   }
-
-  // --- Power sensor (independent of BLE state) ---
   readAndSendPower();
-
-  // --- Forward commands from master to nRF52840 ---
   forwardPendingCommand();
-
-  // --- Local serial commands ---
   checkSerialCommands();
 
   delay(10);

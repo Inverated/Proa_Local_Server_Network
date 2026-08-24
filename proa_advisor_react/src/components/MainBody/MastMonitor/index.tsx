@@ -16,7 +16,7 @@ import '../../../data_type/imu';
 
 const ARRAY_LENGTH = 500;
 
-// MAC address of the combined ESP32 node (update to match your device)
+// MAC address of the combined ESP32 node
 const IMU_NODE_MAC = "88:56:A6:6C:F0:04";
 
 function StatusChip({ label, active }: { label: string; active: boolean }) {

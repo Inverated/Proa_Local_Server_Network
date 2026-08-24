@@ -140,6 +140,7 @@ function processBuffer() {
                 packetSkipped = 0;
             }
         } else if (headerType === STRAIN_HEADER_INT) {
+            //console.log("Strain");
             if (recvBuf.length < PACKET_BYTES) break;
             const result = parseStrainData(recvBuf, PACKET_BYTES, packetSkipped);
             if (!result) {

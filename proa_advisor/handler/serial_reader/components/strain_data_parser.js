@@ -43,6 +43,7 @@ function parseStrainData(recvBuf, packet_bytes, packetSkipped = 0) {
         adjustedReading
     };
 
+    //console.log(`[STRAIN] Counter: ${counter}, Adjusted Reading: ${adjustedReading}, Skipped Packets: ${packetSkipped}`);
     write_to_clients("strain", telemetry);
 
     return recvBuf.subarray(packet_bytes);
