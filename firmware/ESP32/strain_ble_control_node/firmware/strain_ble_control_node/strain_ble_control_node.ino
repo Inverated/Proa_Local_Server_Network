@@ -288,8 +288,11 @@ void loop() {
     pkt.payload.adjustedReading = adjusted;
 
 #if LOGGING
+    Serial.print("\nReading: ");
+    Serial.print(adjusted);
+    Serial.print("  Raw: ");
     Serial.print("Reading: ");
-    Serial.println(adjusted);
+    Serial.println(raw);
 #endif
 
     finalizePacket(pkt, STRAIN_HEADER, strainCounter);
