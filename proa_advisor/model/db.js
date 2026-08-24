@@ -1,5 +1,6 @@
 const { getDB, initializeDatabase } = require('./power_management_models');
 const { soc_to_index } = require('../lib/Kalman Filter/kalman_filter_helper/helper');
+const { withWriteLock } = require('./write_lock');
 
 async function insertSocSensorData(run_id, time_diff, adcReading0, adcReading1, adcReading2, adcReading3, adcReading4, adcReading5, adcReading6, adcReading7) {
     const db = getDB();
@@ -17,6 +18,12 @@ async function insertSocSensorData(run_id, time_diff, adcReading0, adcReading1, 
 
 async function insertSocSensorDataBulk(dataArray) {
     if (!dataArray || dataArray.length === 0) return;
+    // Shared connection: hold the write lock so this transaction cannot
+    // interleave with the IMU or strain ones.
+    return withWriteLock(() => insertSocSensorBatch(dataArray));
+}
+
+async function insertSocSensorBatch(dataArray) {
     const db = getDB();
     return new Promise((resolve, reject) => {
         db.serialize(() => {
@@ -125,7 +132,13 @@ function runSQL(db, sql, params = []) {
     });
 }
 
-async function insertAllStatesAndReadings(run_id, { main_state_vector, main_state_cov}, { alt_state_vector, alt_state_cov }, { total_time, total_load_W, total_mppt_W, total_batt1_net_W, total_batt2_net_W, I_batt_main, I_batt_alternate, I_mppt, I_load, Corrected_I_batt_main, Corrected_I_batt_alternate, Corrected_I_mppt, Corrected_I_load, V_batt_main, V_batt_alternate, Corrected_V_batt_main, Corrected_V_batt_alternate, OCV_batt_main, OCV_batt_alternate, SoC_batt_main, SoC_batt_alternate }, { kcl_cov, kcl_biases }) {
+async function insertAllStatesAndReadings(run_id, main, alt, readings, kcl) {
+    // Shared connection: hold the write lock so this transaction cannot
+    // interleave with the IMU or strain ones.
+    return withWriteLock(() => insertAllStatesAndReadingsLocked(run_id, main, alt, readings, kcl));
+}
+
+async function insertAllStatesAndReadingsLocked(run_id, { main_state_vector, main_state_cov}, { alt_state_vector, alt_state_cov }, { total_time, total_load_W, total_mppt_W, total_batt1_net_W, total_batt2_net_W, I_batt_main, I_batt_alternate, I_mppt, I_load, Corrected_I_batt_main, Corrected_I_batt_alternate, Corrected_I_mppt, Corrected_I_load, V_batt_main, V_batt_alternate, Corrected_V_batt_main, Corrected_V_batt_alternate, OCV_batt_main, OCV_batt_alternate, SoC_batt_main, SoC_batt_alternate }, { kcl_cov, kcl_biases }) {
     // Insert main, alt, kcl and sensor readings in a single transaction to avoid backlog
     const db = getDB();
     try {

@@ -6,19 +6,110 @@ const INTER_BATCH_DELAY_MS = 2;
 const DB_PATH = path.resolve(__dirname, "..", "proa.db");
 let activeDownload = null;
 
+/**
+ * The three sensor streams, each with its own table and its own run_id counter.
+ *
+ * run_id is NOT shared across these tables: run 1 in StrainReadings is a
+ * different time window from run 1 in SOCSensor. Every lookup here is therefore
+ * scoped to a single table.
+ *
+ * Table and column names are interpolated into SQL because SQLite cannot bind
+ * identifiers. Only the hard-coded values below ever reach a statement - the
+ * caller-supplied key is validated against this registry by normalizeSensorKey
+ * before use, so no request data becomes SQL.
+ *
+ * Columns are listed explicitly rather than using SELECT * so the CSV order is
+ * stable even where the physical layout differs (recv_ms was appended by
+ * migration on older databases, so it sits last in IMUReadings there).
+ */
+const SENSOR_TABLES = {
+    power: {
+        label: "Power",
+        table: "SOCSensor",
+        fileStem: "SOCSensor",
+        columns: [
+            "id",
+            "timestamp",
+            "run_id",
+            "time_diff",
+            "adcReading0",
+            "adcReading1",
+            "adcReading2",
+            "adcReading3",
+            "adcReading4",
+            "adcReading5",
+            "adcReading6",
+            "adcReading7",
+        ],
+    },
+    imu: {
+        label: "IMU",
+        table: "IMUReadings",
+        fileStem: "IMUReadings",
+        columns: [
+            "id",
+            "timestamp",
+            "recv_ms",
+            "run_id",
+            "counter",
+            "baseRoll",
+            "basePitch",
+            "topRoll",
+            "topPitch",
+            "topMinusBaseRoll",
+            "topMinusBasePitch",
+            "vectorAngle",
+            "bendMagnitude",
+            "topSeq",
+            "topConnected",
+            "sensingEnabled",
+            "zeroReady",
+        ],
+    },
+    strain: {
+        label: "Strain",
+        table: "StrainReadings",
+        fileStem: "StrainReadings",
+        columns: [
+            "id",
+            "timestamp",
+            "recv_ms",
+            "run_id",
+            "counter",
+            "adjustedReading",
+        ],
+    },
+};
+
 class DownloadInProgressError extends Error {
-    constructor(message = "Another SOCSensor download is already in progress.") {
+    constructor(message = "Another sensor data download is already in progress.") {
         super(message);
         this.name = "DownloadInProgressError";
         this.statusCode = 409;
     }
 }
 
+/**
+ * Validate a caller-supplied sensor type against the registry.
+ * @param {string} value "power" | "imu" | "strain"
+ */
+function normalizeSensorKey(value) {
+    const key = String(value ?? "").trim().toLowerCase();
+    if (!Object.prototype.hasOwnProperty.call(SENSOR_TABLES, key)) {
+        throw new Error(`sensor type must be one of: ${Object.keys(SENSOR_TABLES).join(", ")}.`);
+    }
+    return key;
+}
+
+function getSensorLabel(sensorKey) {
+    return SENSOR_TABLES[normalizeSensorKey(sensorKey)].label;
+}
+
 function acquireDownloadLock() {
     if (activeDownload !== null) {
         throw new DownloadInProgressError();
     }
-    const token = Symbol("socsensor-download-lock");
+    const token = Symbol("sensor-download-lock");
     activeDownload = { token, startedAt: Date.now() };
     return token;
 }
@@ -89,12 +180,12 @@ function closeDB(db) {
     });
 }
 
-function fetchRowsBatch(db, runId, startRowId, lastId, batchSize) {
+function fetchRowsBatch(db, sensor, runId, startRowId, lastId, batchSize) {
     return new Promise((resolve, reject) => {
         db.all(
             `
-                SELECT id, timestamp, run_id, time_diff, adcReading0, adcReading1, adcReading2, adcReading3, adcReading4, adcReading5, adcReading6, adcReading7
-                FROM SOCSensor
+                SELECT ${sensor.columns.join(", ")}
+                FROM ${sensor.table}
                 WHERE run_id = ? AND id >= ? AND id > ?
                 ORDER BY id ASC
                 LIMIT ?
@@ -135,14 +226,21 @@ function normalizeRunId(value) {
     return parsed;
 }
 
-async function getSOCSensorRunSummaries() {
+/**
+ * Per-run summaries for one sensor stream, newest run first.
+ *
+ * @param {string} sensorKey "power" | "imu" | "strain"
+ * @returns {Promise<Array<{run_id:number,start_row_id:number,start_datetime:string,row_count:number}>>}
+ */
+async function getRunSummaries(sensorKey) {
+    const sensor = SENSOR_TABLES[normalizeSensorKey(sensorKey)];
     const db = await openReadOnlyDB();
     try {
         const rows = await new Promise((resolve, reject) => {
             db.all(
                 `
                     SELECT run_id, MIN(id) AS start_row_id, MIN(timestamp) AS start_datetime, COUNT(*) AS row_count
-                    FROM SOCSensor
+                    FROM ${sensor.table}
                     GROUP BY run_id
                     ORDER BY run_id DESC
                 `,
@@ -167,7 +265,14 @@ async function getSOCSensorRunSummaries() {
     }
 }
 
-async function streamSOCSensorCsvByRun(req, res, runId, startRowId = 0) {
+/**
+ * Stream one run of one sensor table out as CSV, in batches, without holding the
+ * whole result set in memory.
+ *
+ * @param {string} sensorKey "power" | "imu" | "strain"
+ */
+async function streamSensorCsvByRun(req, res, sensorKey, runId, startRowId = 0) {
+    const sensor = SENSOR_TABLES[normalizeSensorKey(sensorKey)];
     const lockToken = acquireDownloadLock();
     let readOnlyDB = null;
     let reqClosed = false;
@@ -176,30 +281,16 @@ async function streamSOCSensorCsvByRun(req, res, runId, startRowId = 0) {
     };
     req.on("close", onClose);
 
-    const fileName = `SOCSensor_run_${runId}_from_rowid_${startRowId}.csv`;
-    const headers = [
-        "id",
-        "timestamp",
-        "run_id",
-        "time_diff",
-        "adcReading0",
-        "adcReading1",
-        "adcReading2",
-        "adcReading3",
-        "adcReading4",
-        "adcReading5",
-        "adcReading6",
-        "adcReading7",
-    ];
+    const fileName = `${sensor.fileStem}_run_${runId}_from_rowid_${startRowId}.csv`;
 
     try {
         readOnlyDB = await openReadOnlyDB();
 
         let lastId = startRowId - 1;
-        let rows = await fetchRowsBatch(readOnlyDB, runId, startRowId, lastId, STREAM_BATCH_SIZE);
+        let rows = await fetchRowsBatch(readOnlyDB, sensor, runId, startRowId, lastId, STREAM_BATCH_SIZE);
         if (rows.length === 0) {
             res.status(404).json({
-                message: `No SOCSensor rows found for run_id=${runId} from rowid=${startRowId}.`,
+                message: `No ${sensor.label} rows found for run_id=${runId} from rowid=${startRowId}.`,
             });
             return;
         }
@@ -209,9 +300,10 @@ async function streamSOCSensorCsvByRun(req, res, runId, startRowId = 0) {
         res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
         res.setHeader("Cache-Control", "no-store");
         res.setHeader("X-Run-Id", String(runId));
+        res.setHeader("X-Sensor-Type", sensor.label);
         res.flushHeaders?.();
 
-        if (!writeCsvRow(res, headers)) {
+        if (!writeCsvRow(res, sensor.columns)) {
             await waitForDrain(res);
         }
 
@@ -221,20 +313,7 @@ async function streamSOCSensorCsvByRun(req, res, runId, startRowId = 0) {
                     break;
                 }
 
-                const canContinue = writeCsvRow(res, [
-                    row.id,
-                    row.timestamp,
-                    row.run_id,
-                    row.time_diff,
-                    row.adcReading0,
-                    row.adcReading1,
-                    row.adcReading2,
-                    row.adcReading3,
-                    row.adcReading4,
-                    row.adcReading5,
-                    row.adcReading6,
-                    row.adcReading7,
-                ]);
+                const canContinue = writeCsvRow(res, sensor.columns.map((column) => row[column]));
                 if (!canContinue) {
                     await waitForDrain(res);
                 }
@@ -246,7 +325,7 @@ async function streamSOCSensorCsvByRun(req, res, runId, startRowId = 0) {
             }
 
             await new Promise((resolve) => setTimeout(resolve, INTER_BATCH_DELAY_MS));
-            rows = await fetchRowsBatch(readOnlyDB, runId, startRowId, lastId, STREAM_BATCH_SIZE);
+            rows = await fetchRowsBatch(readOnlyDB, sensor, runId, startRowId, lastId, STREAM_BATCH_SIZE);
             if (rows.length === 0) {
                 break;
             }
@@ -262,10 +341,24 @@ async function streamSOCSensorCsvByRun(req, res, runId, startRowId = 0) {
     }
 }
 
+// Kept so the existing power-only routes keep working unchanged.
+function getSOCSensorRunSummaries() {
+    return getRunSummaries("power");
+}
+
+function streamSOCSensorCsvByRun(req, res, runId, startRowId = 0) {
+    return streamSensorCsvByRun(req, res, "power", runId, startRowId);
+}
+
 module.exports = {
     DownloadInProgressError,
+    SENSOR_TABLES,
+    getRunSummaries,
+    getSensorLabel,
     getSOCSensorRunSummaries,
     normalizeRowId,
     normalizeRunId,
+    normalizeSensorKey,
+    streamSensorCsvByRun,
     streamSOCSensorCsvByRun,
 };
