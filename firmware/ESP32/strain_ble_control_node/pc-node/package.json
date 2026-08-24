@@ -1,9 +1,0 @@
-{
-  "name": "strain-ble-control-node",
-  "private": true,
-  "version": "1.0.0",
-  "description": "Local Node.js control node for a BLE strain-sensing ESP32",
-  "scripts": {
-    "start": "node server.js"
-  }
-}
