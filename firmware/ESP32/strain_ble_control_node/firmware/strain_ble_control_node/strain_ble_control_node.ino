@@ -11,8 +11,8 @@ static constexpr uint8_t I2C_SDA_PIN = 21;
 static constexpr uint8_t I2C_SCL_PIN = 22;
 
 // ---------- Debug ----------
-#define SHOW_SUCCESS 0
-
+#define SHOW_SUCCESS  0
+#define LOGGING       1
 // =======================
 // ESP-NOW CONFIG
 // =======================
@@ -113,7 +113,7 @@ uint16_t strainCounter = 1;
 // ESP-NOW CALLBACKS
 // =======================
 
-void onESPNowSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
+void onESPNowSent(const wifi_tx_info_t *tx_info, esp_now_send_status_t status) {
 #if SHOW_SUCCESS
   if (status == ESP_NOW_SEND_SUCCESS) {
     Serial.println("Delivery Success");
@@ -242,7 +242,8 @@ void setupScale() {
 // =======================
 
 void setup() {
-  Serial.begin(2000000);
+  Serial.begin(115200);
+  Serial.println("Started");
   delay(300);
 
   WiFi.mode(WIFI_STA);
@@ -276,6 +277,11 @@ void loop() {
     clearPacket(pkt);
 
     pkt.payload.adjustedReading = adjusted;
+
+#if LOGGING
+    Serial.print("Reading: ");
+    Serial.println(adjusted);
+#endif
 
     finalizePacket(pkt, STRAIN_HEADER, strainCounter);
     incrementCounter(strainCounter);

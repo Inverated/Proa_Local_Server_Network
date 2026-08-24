@@ -212,9 +212,11 @@ void IRAM_ATTR loop() {
     transmission_result = esp_now_send(boadcastAddr, (uint8_t *)&bulkPacket, sizeof(bulkPacket));
   }
 
+  /*
   if (transmission_result != ESP_OK) {
     Serial.println("Failed to queue");
   }
+  */
 
 #if SHOW_SUCCESS
   if (transmission_result == ESP_OK) {
