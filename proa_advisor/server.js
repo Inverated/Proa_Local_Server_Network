@@ -41,9 +41,6 @@ function startBackend() {
             startSerialReader();
         }
     }).catch((err) => {
-        // Without this a rejection anywhere in the chain (e.g. a failed table
-        // creation) was an unhandled rejection: the serial reader silently never
-        // started and nothing was logged.
         console.error("\n//====================================================//\nBackend startup failed:", err && err.message ? err.message : err);
         console.error(err && err.stack ? err.stack : '');
         console.error("//====================================================//\n");
@@ -55,7 +52,7 @@ function useSupabase() {
         if (HARD_STOP_SUPABASE) {
             console.log("Forcefully stopped the connection with supabase")
         } else {
-            setInterval(updateDatabase, 1000); // Call updateDatabase every 10 seconds only if there is internet connection
+            setInterval(updateDatabase, 10000); // Call updateDatabase every 10 seconds only if there is internet connection
         }
     }
 }
