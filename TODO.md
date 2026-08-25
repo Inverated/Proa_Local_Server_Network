@@ -1,7 +1,3 @@
-1. Display page for IMU
-2. Display page for strain gauge
-3. Dev mode in setting
-    - Calibrate strain stuff
-    
-4. Remove content from original downloaded template
-5. Update file structure from template to mine
+1. GPS Module integration and routing display
+2. External controller? using esp32 control box
+3. Remove content from original downloaded template
