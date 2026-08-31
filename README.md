@@ -1,15 +1,39 @@
-# Structure
+[![Proa Local Server Network Hardware Setup](./images/Final%20Build/setup.jpg)](./images/Final%20Build/)
+
+# Hardware
+
+Electrical simulation used for the build can be found at [Solar Proa](https://github.com/shipshape-marine/solar-proa/tree/main/src/electrical_simulation).
+
+[![Proa Local Server Network Schema](./images/Final%20Build/Full%20Electrical%20Build.png)](./images/Final%20Build/)
+
+KiCad build file [here](./Hardware%20Schematics/ADC%20Power%20Sensor%20Design/).
+
+[![Power Management Board](./images/Power%20Management%20PCB/ADS8688%20Reader.png)](./images/Power%20Management%20PCB/)
+
+# Framework
+
+Network of ESP32 microcontrollers with a Raspberry Pi 4 acting as a local server. ESP32 reading the sensors (slave) communicates bi-directionally via ESP-NOW where the main (Master) ESP32 sends the data to the raspberry pi via Serial communication.
+
+ESP-NOW used for its low latency and low power consumption while being very easy to setup (<10 lines to setup + 2 function that runs when receiving or sending data), while Serial is used for its reliability and ease of use.
+
+[![Proa Local Server Network Framework](./images/Data%20Flow/Framework.png)](./images/Data%20Flow/)
+
+Both Serial and ESP-NOW allows for bi-communication, allowing the raspberry pi to send command (zeroing, start, stop, etc.) to specific ESP32s (IMU), while the ESP32s sends data to the raspberry pi at the same time.
+
+[Template for communicating with the master node](./firmware/ESP32/template_sender_firmware//). Note that the mac address need to be changed to the master node's mac address in order for the ESP32 to send data to the master node.
+
+
+# Code Structure
 
 ExpressJs backend api + Serial reading
 
 React frontend with MUI dashboard template
 
 - https://github.com/mui/material-ui/tree/v9.0.1/docs/data/material/getting-started/templates/dashboard
-- A shit template that mixes ts, js and tsx, jsx
-- Shitter template with no organisation to the code
+- A shit template that mixes ts, js and tsx, jsx and poor code organisation
 
 
-# Proa Local Server Network — Setup Guide
+# Proa Local Server Network — Step by step Setup Guide
 
 ## Part 1: Running the App
 
@@ -23,7 +47,7 @@ React frontend with MUI dashboard template
 
 ---
 
-## Part 2: Raspberry Pi 4 Setup
+## Part 2: Raspberry Pi 4 Setup (Everything else after this is for setting up on raspberry pi)
 
 Using Raspberry Pi Lite OS for fast boot time in case of downtime.
 > A UPS is included, but fast boot time and proper recovery steps are still essential.
