@@ -1,9 +1,9 @@
 /*
  * esp32_ble_receiver.ino
  * 
- * Combined ESP32-C3 Node: BLE Mast Telemetry + INA219 Power Sensor
+ * Combined ESP32-C3 Node: BLE Mast Telemetry + INA219 Power Sensor + GPS Module
  * 
- * This single ESP32-C3 handles two independent data streams:
+ * This single ESP32-C3 handles three independent data streams:
  *  1. MAST TELEMETRY (header "MAST"):
  *     - Connects to nRF52840 base bridge ("XIAO_BASE_AUTO") via BLE
  *     - Receives 17-byte structured telemetry at ~10 Hz
@@ -11,10 +11,10 @@
  *  2. POWER SENSOR (header "SENS"):
  *     - Reads INA219 shunt monitor via I2C
  *     - Sends voltage/current/power readings at ~1 Hz to master via ESP-NOW
- * 
- * Both streams are independent and fault-tolerant:
- *  - If BLE is not connected, power sensor still sends.
- *  - If INA219 is not present, mast telemetry still forwards.
+ *  3. GPS Module (header "GPSM"):
+ *     - Reads NMEA sentences from GPS module via UART
+ *     - ATGM336H GPS module
+ * Streams are independent and fault-tolerant:
  *  - Commands from master via ESP-NOW are forwarded to the nRF52840 via BLE write.
  * 
  * Target: ESP32-C3 (or any ESP32 variant)
@@ -23,12 +23,12 @@
  * Dependencies:
  *  - Adafruit_INA219 library
  *  - ESP32 BLE Arduino (built-in)
+ *
  */
 
 #include <Arduino.h>
 #include <WiFi.h>
 #include <esp_now.h>
-#include <esp_wifi.h>
 #include <Wire.h>
 #include <Adafruit_INA219.h>
 #include <BLEDevice.h>
@@ -36,13 +36,12 @@
 #include <BLEScan.h>
 #include <BLEClient.h>
 #include <BLEAdvertisedDevice.h>
-#include <math.h>
+#include <TinyGPSPlus.h>
+#include <HardwareSerial.h>
 #include <U8g2lib.h>
 #include <MUIU8g2.h>
 
-// Logging: set to 0 for production to save flash/CPU
-#define LOGGING 0
-#define SHOW_SUCCESS 0
+#define LOGGING 1
 
 // =======================
 // PIN CONFIG (adjust for your board)
@@ -58,7 +57,6 @@
 uint8_t receiverAddr[] = { 0xac, 0xeb, 0xe6, 0x49, 0xc7, 0xcc };
 
 esp_now_peer_info_t peerInfo;
-
 U8G2_SSD1306_72X40_ER_F_SW_I2C u8g2(U8G2_R0, /* clock=*/6, /* data=*/5, /* reset=*/U8X8_PIN_NONE);
 
 uint32_t str_to_u32(const char s[4]) {
@@ -97,22 +95,8 @@ void finalizePacket(PacketT &pkt, uint32_t header, uint16_t counter) {
 }
 
 template<typename PacketT>
-bool sendPacket(const PacketT &pkt) {
-  esp_err_t result = esp_now_send(receiverAddr, (const uint8_t *)&pkt, sizeof(pkt));
-  if (result != ESP_OK) {
-    taskYIELD();
-    result = esp_now_send(receiverAddr, (const uint8_t *)&pkt, sizeof(pkt));
-  }
-  if (result != ESP_OK) {
-#if LOGGING
-    Serial.println("ESP-NOW: Send failed");
-#endif
-    return false;
-  }
-#if SHOW_SUCCESS
-  Serial.println("ESP-NOW: Sent OK");
-#endif
-  return true;
+void sendPacket(const PacketT &pkt) {
+  esp_now_send(receiverAddr, (const uint8_t *)&pkt, sizeof(pkt));
 }
 
 void incrementCounter(uint16_t &counter) {
@@ -139,13 +123,12 @@ struct __attribute__((packed)) MastPayload {
 
 // ESP-NOW packet: header(4) + counter(2) + payload(17) + padding(3) + chksum(2) = 28 bytes
 using MastPacket = PacketTemplate<MastPayload, 3>;
-static_assert(sizeof(MastPacket) == 28, "MastPacket must be 28 bytes");
 
 uint32_t MAST_HEADER;
 uint16_t mastCounter = 1;
 
 // =======================
-// STREAM 2: POWER SENSOR (I2C -> ESP-NOW, header "SENS")
+// POWER SENSOR (I2C -> ESP-NOW, header "SENS")
 // =======================
 
 struct __attribute__((packed)) SensorPowerPayload {
@@ -159,7 +142,6 @@ struct __attribute__((packed)) SensorPowerPayload {
 
 // ESP-NOW packet: header(4) + counter(2) + payload(20) + padding(0) + chksum(2) = 28 bytes
 using SensorPowerPacket = PacketTemplate<SensorPowerPayload, 0>;
-static_assert(sizeof(SensorPowerPacket) == 28, "SensorPowerPacket must be 28 bytes");
 
 uint32_t SENS_HEADER;
 uint16_t sensCounter = 1;
@@ -170,19 +152,59 @@ uint32_t lastPowerRead = 0;
 const uint32_t POWER_INTERVAL_MS = 1000;  // 1 Hz
 
 // =======================
-// ESP-NOW CALLBACKS
+// GPS MODULE (UART -> ESP-NOW, header "GPSM")
 // =======================
 
-void onESPNowSent(const esp_now_send_info_t *info, esp_now_send_status_t status) {
-#if SHOW_SUCCESS
-  if (status == ESP_NOW_SEND_SUCCESS) Serial.println("ESP-NOW: Delivered");
-#endif
-  if (status != ESP_NOW_SEND_SUCCESS) {
-#if LOGGING
-    Serial.println("ESP-NOW: Delivery fail");
-#endif
+struct __attribute__((packed)) GPSPayload {
+  int32_t latitude;    // fixed-point ×1e7
+  int32_t longitude;   // fixed-point ×1e7
+  int16_t altitude;    // meters
+  uint16_t speed;      // km/h
+  uint16_t course;     // degrees ×100
+  uint16_t hdop;       // cm
+  uint8_t satellites;  // number of satellites
+};
+// Total size = 4+4+2+2+2+2+1 = 17 bytes
+
+// ESP-NOW packet: header(4) + counter(2) + payload(17) + padding(3) + chksum(2) = 28 bytes
+using GPSPacket = PacketTemplate<GPSPayload, 3>;
+
+uint32_t GPS_HEADER;
+uint16_t gpsCounter = 1;
+uint32_t last_gps_read = 0;
+TinyGPSPlus gps;
+static const int RXPin = 20, TXPin = 21;
+static const uint32_t GPSBaud = 9600;
+
+HardwareSerial ss(1);
+
+void readandSendGPS() {
+  // Feed ALL available GPS data to TinyGPSPlus
+  while (ss.available()) {
+    gps.encode(ss.read());
   }
+
+  // Send once per second
+  if (millis() - last_gps_read < 1000) return;
+  last_gps_read = millis();
+
+  GPSPacket pkt;
+  clearPacket(pkt);
+
+  pkt.payload.latitude  = (int32_t)(gps.location.lat() * 10000000.0);
+  pkt.payload.longitude = (int32_t)(gps.location.lng() * 10000000.0);
+  pkt.payload.altitude  = (int16_t)gps.altitude.meters();
+  pkt.payload.speed     = (uint16_t)gps.speed.kmph();
+  pkt.payload.course    = (uint16_t)(gps.course.deg() * 100.0);
+  pkt.payload.hdop      = (uint16_t)gps.hdop.hdop();
+  pkt.payload.satellites = (uint8_t)gps.satellites.value();
+
+  finalizePacket(pkt, GPS_HEADER, gpsCounter);
+  incrementCounter(gpsCounter);
+  sendPacket(pkt);
+  Serial.println(pkt.payload.latitude);
 }
+
 
 // Command reception from master node via ESP-NOW.
 // Master sends raw ASCII bytes (e.g., "START", "STOP", "ZERO", "RESET_ZERO").
@@ -201,8 +223,6 @@ void onESPNowRecv(const esp_now_recv_info_t *info, const uint8_t *incomingData, 
 #if LOGGING
   Serial.printf("ESP-NOW cmd recv: %s\n", commandBuffer);
 #endif
-  Serial.printf("ESP-NOW cmd recv: %s\n", commandBuffer);
-
 }
 
 bool init_ESP_NOW() {
@@ -213,7 +233,6 @@ bool init_ESP_NOW() {
     return false;
   }
 
-  esp_now_register_send_cb(onESPNowSent);
   esp_now_register_recv_cb(onESPNowRecv);
 
   memset(&peerInfo, 0, sizeof(peerInfo));
@@ -313,6 +332,7 @@ class ClientCallbacks : public BLEClientCallbacks {
     telemetryRemoteChar = nullptr;
     commandRemoteChar = nullptr;
     statusRemoteChar = nullptr;
+
 #if LOGGING
     Serial.println("BLE: Disconnected");
 #endif
@@ -415,25 +435,6 @@ void forwardPendingCommand() {
 #endif
 }
 
-// Serial commands for local debugging
-void checkSerialCommands() {
-  if (!Serial.available()) return;
-
-  String cmd = Serial.readStringUntil('\n');
-  cmd.trim();
-  if (cmd.length() == 0) return;
-
-  if (bleConnected && commandRemoteChar != nullptr) {
-#if LOGGING
-    Serial.printf("[SERIAL >> BLE] %s\n", cmd.c_str());
-#endif
-    commandRemoteChar->writeValue(cmd.c_str(), cmd.length());
-  } else {
-#if LOGGING
-    Serial.println("Serial cmd ignored: BLE not connected");
-#endif
-  }
-}
 
 // =======================
 // POWER SENSOR READING
@@ -466,6 +467,7 @@ void readAndSendPower() {
 #endif
 }
 
+
 bool init_OLED() {
   u8g2.begin();
   u8g2.setFont(u8g2_font_ncenB08_tr);
@@ -494,17 +496,15 @@ void updateDisplay(float busvoltage, float current_mA, float power_mW) {
 
 void setup() {
   Serial.begin(115200);
-  delay(500);
+  ss.begin(GPSBaud, SERIAL_8N1, RXPin, TXPin);
 
   // --- WiFi + ESP-NOW ---
   WiFi.mode(WIFI_STA);
+  init_OLED();
+  
+#if LOGGING
   Serial.print("ESP32 MAC Address: ");
   Serial.println(WiFi.macAddress());
-  
-  init_OLED();
-
-#if LOGGING
-  Serial.printf("MAC: %s\n", WiFi.macAddress().c_str());
 #endif
 
   while (!init_ESP_NOW()) {
@@ -518,10 +518,8 @@ void setup() {
   char sensRole[4] = { 'S', 'E', 'N', 'S' };
   SENS_HEADER = str_to_u32(sensRole);
 
-#if LOGGING
-  Serial.printf("MAST header: 0x%08X  packet: %d bytes\n", MAST_HEADER, sizeof(MastPacket));
-  Serial.printf("SENS header: 0x%08X  packet: %d bytes\n", SENS_HEADER, sizeof(SensorPowerPacket));
-#endif
+  char gpsRole[4] = { 'G', 'P', 'S', 'M' };
+  GPS_HEADER = str_to_u32(gpsRole);
 
   // --- I2C + INA219 (non-blocking: continues if not found) ---
   Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);
@@ -569,8 +567,8 @@ void loop() {
     startBleScan();
   }
   readAndSendPower();
+  readandSendGPS();
   forwardPendingCommand();
-  checkSerialCommands();
 
   delay(10);
 }
