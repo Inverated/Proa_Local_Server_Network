@@ -1,0 +1,15 @@
+.gps-map-page {
+    width: 100%;
+}
+
+.gps-map-shell {
+    width: 100%;
+    overflow: hidden;
+    border-radius: 8px;
+}
+
+.gps-map-shell .leaflet-container {
+    width: 100%;
+    min-height: 420px;
+    height: min(70vh, 720px);
+}

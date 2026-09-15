@@ -13,12 +13,14 @@ import ImportantDevicesIcon from '@mui/icons-material/ImportantDevices';
 import { useEffect, useState } from 'react';
 
 import StraightenIcon from '@mui/icons-material/Straighten';
+import MapRoundedIcon from '@mui/icons-material/MapRounded';
 
 const mainListItems = [
     { text: 'Overview', icon: <HomeRoundedIcon /> },
     { text: 'Power Management', icon: <AnalyticsRoundedIcon /> },
     { text: 'Strain Gauge', icon: <PeopleRoundedIcon /> },
     { text: 'Mast Monitor', icon: <StraightenIcon /> },
+    { text: 'GPS Route', icon: <MapRoundedIcon /> },
 ];
 
 const secondaryListItems = [

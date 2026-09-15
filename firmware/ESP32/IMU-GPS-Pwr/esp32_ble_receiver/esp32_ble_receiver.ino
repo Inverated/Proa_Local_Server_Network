@@ -1,4 +1,5 @@
 /*
+ * Must change partition to Minimumal SPIFFS
  * esp32_ble_receiver.ino
  * 
  * Combined ESP32-C3 Node: BLE Mast Telemetry + INA219 Power Sensor + GPS Module
@@ -41,7 +42,7 @@
 #include <U8g2lib.h>
 #include <MUIU8g2.h>
 
-#define LOGGING 1
+#define LOGGING 0
 
 // =======================
 // PIN CONFIG (adjust for your board)
@@ -202,7 +203,11 @@ void readandSendGPS() {
   finalizePacket(pkt, GPS_HEADER, gpsCounter);
   incrementCounter(gpsCounter);
   sendPacket(pkt);
+#if LOGGING 
   Serial.println(pkt.payload.latitude);
+  Serial.println(pkt.payload.altitude);
+  Serial.println(pkt.payload.satellites);
+#endif
 }
 
 

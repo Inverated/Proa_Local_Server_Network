@@ -5,19 +5,26 @@
 const express = require("express");
 const jwt = require("jsonwebtoken");
 const bodyParser = require("body-parser");
+const process = require("node:process");
+const dotenv = require("dotenv");
 
 const path = require("path");
+dotenv.config({ path: path.join(__dirname, ".env") });
 const app = express();
 const port = 4000;
 const cors = require("cors");
+const mapTilesPath = path.resolve(__dirname, process.env.MAP_TILES_DIR ?? "map-tiles");
 
 app.use(cors());
 app.use(express.json());
 app.use(bodyParser.json());
 app.use(express.urlencoded({ extended: true }));
+app.use("/map-tiles", express.static(mapTilesPath, {
+    maxAge: "1d",
+    etag: true,
+    fallthrough: true,
+}));
 app.use(express.static(path.join(__dirname, 'public')));
-
-const process = require("node:process");
 const { add_client, get_clients, remove_client } = require("./handler/client_transmission");
 const { getCurrentRunId } = require("./lib/Kalman Filter/kalman_filter");
 const { populateInitalChartData } = require('./model/db');
@@ -36,6 +43,7 @@ const { switchMode } = require("./handler/switch_env_mode");
 const { closeAllConnections } = require("./handler/terminal_socket/ws");
 const { updateRepo } = require("./handler/repository/simple_git");
 const { streamSOCSensorCsvByRun, streamSensorCsvByRun, normalizeRowId, normalizeRunId, normalizeSensorKey, getSOCSensorRunSummaries, getRunSummaries, getSensorLabel, DownloadInProgressError } = require("./handler/database_download");
+const { getMapConfig } = require("./handler/map_config");
 startBackend(); 
 
 
@@ -80,6 +88,15 @@ const middlewareAuth = (req, res, next) => {
 // ------------------- //
 // PUBLIC ROUTES
 // ------------------- //
+
+app.get("/map_config", (req, res) => {
+    try {
+        res.json(getMapConfig());
+    } catch (error) {
+        console.error("Error loading map configuration:", error);
+        res.status(500).json({ message: "Map configuration is invalid." });
+    }
+});
 
 // Data stream format => event: <event_type>\ndata: <data_as_json_string>\n\n
 // Keep only one connection open to a client at a time

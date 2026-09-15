@@ -9,6 +9,13 @@ const serverPublicPath = path.join(__dirname, "../public");
 fs.rmSync(serverPublicPath, { recursive: true, force: true });
 
 // copy the build folder to the server's public folder
-fs.cpSync(reactBuildPath, serverPublicPath, { recursive: true });
+fs.cpSync(reactBuildPath, serverPublicPath, {
+    recursive: true,
+    filter: (source) => {
+        const relativePath = path.relative(reactBuildPath, source);
+        return relativePath !== "map-tiles"
+            && !relativePath.startsWith(`map-tiles${path.sep}`);
+    },
+});
 
 console.log("\n//====================================================//\nReact build copied to server public folder.\n//====================================================//\n");

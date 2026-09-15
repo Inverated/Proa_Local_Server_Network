@@ -17,7 +17,7 @@ import {
     datePickersCustomizations,
     treeViewCustomizations,
 } from './theme/customizations';
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import Overview from './components/MainBody/Overview';
 import PowerManagement from './components/MainBody/PowerManagement';
 import StrainManagement from './components/MainBody/StrainManagement';
@@ -29,7 +29,9 @@ import './data_type/message';
 import './data_type/power';
 import './data_type/imu';
 import './data_type/strain';
+import './data_type/gps';
 
+const GpsMap = lazy(() => import('./components/MainBody/GpsMap'));
 
 const xThemeComponents = {
     ...chartsCustomizations,
@@ -45,6 +47,8 @@ export default function Dashboard(props: { disableCustomTheme?: boolean }) {
     const [messages, setMessages] = useState<MessageData[]>([]);  // For floating messages
     const [strainData, setStrainData] = useState<StrainData | null>(null);
     const [imuData, setImuData] = useState<IMUData | null>(null);
+    const [gpsData, setGpsData] = useState<GPSData | null>(null);
+    const [gpsTrack, setGpsTrack] = useState<GPSData[]>([]);
 
     useEffect(() => {
         let eventSource: EventSource | null = null;
@@ -82,6 +86,19 @@ export default function Dashboard(props: { disableCustomTheme?: boolean }) {
         eventSource.addEventListener("imu", (event) => {
             const data = JSON.parse(event.data);
             setImuData(data);
+        });
+
+        eventSource.addEventListener("gps", (event) => {
+            const data: GPSData = JSON.parse(event.data);
+            setGpsData(data);
+            if (data.valid) {
+                setGpsTrack((previous) => {
+                    if (previous.some((point) => point.counter === data.counter)) {
+                        return previous;
+                    }
+                    return [...previous, data].slice(-10000);
+                });
+            }
         });
 
         eventSource.addEventListener("message", (event) => {
@@ -125,9 +142,10 @@ export default function Dashboard(props: { disableCustomTheme?: boolean }) {
                                     mainContent === 1 ? 'Power Management' :
                                         mainContent === 2 ? 'Strain Management' :
                                             mainContent === 3 ? 'Mast Monitor' :
-                                                mainContent === 4 ? 'Dev Panel' :
-                                                    mainContent === 5 ? 'Settings' :
-                                                        mainContent === 6 ? 'About' :
+                                                mainContent === 4 ? 'GPS Route' :
+                                                    mainContent === 5 ? 'Dev Panel' :
+                                                        mainContent === 6 ? 'Settings' :
+                                                            mainContent === 7 ? 'About' :
                                             'Unknown'} />
                         <MessageBlock Messages={messages} />
                         <Stack sx={{ width: "100%", height: "100%" }}>
@@ -136,10 +154,15 @@ export default function Dashboard(props: { disableCustomTheme?: boolean }) {
                                     mainContent === 1 ? <PowerManagement data={powerData} /> :
                                         mainContent === 2 ? <StrainManagement data={strainData} /> :
                                             mainContent === 3 ? <MastMonitor data={imuData} /> :
-                                                mainContent === 4 ? <DevPanel /> :
-                                                    mainContent === 5 ? <Settings /> :
-                                                        mainContent === 6 ? <div>About</div> :
-                                            <div>Unknown Content</div>
+                                                mainContent === 4 ? (
+                                                    <Suspense fallback={<Box sx={{ width: '100%', minHeight: 400 }}>Loading map...</Box>}>
+                                                        <GpsMap data={gpsData} track={gpsTrack} />
+                                                    </Suspense>
+                                                ) :
+                                                    mainContent === 5 ? <DevPanel /> :
+                                                        mainContent === 6 ? <Settings /> :
+                                                            mainContent === 7 ? <div>About</div> :
+                                        <div>Unknown Content</div>
                             }
                         </Stack>
                     </Stack>

@@ -9,6 +9,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node server_manager.js",
+    "download:map": "node scripts/download_map_tiles.mjs",
     "build:react": "cd ../proa_advisor_react && yarn && yarn run build",
     "copy:react": "node scripts/copyReactBuild.js",
     "rebuild": "yarn && yarn run build:react && yarn run copy:react",
