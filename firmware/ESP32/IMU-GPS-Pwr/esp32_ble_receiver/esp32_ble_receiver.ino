@@ -46,8 +46,8 @@
 // =======================
 // PIN CONFIG (adjust for your board)
 // =======================
-#define I2C_SDA_PIN 0
-#define I2C_SCL_PIN 1
+#define I2C_SDA_PIN 3
+#define I2C_SCL_PIN 4
 
 // =======================
 // ESP-NOW PACKET TEMPLATE (shared protocol with master)
@@ -460,11 +460,6 @@ void readAndSendPower() {
   finalizePacket(pkt, SENS_HEADER, sensCounter);
   incrementCounter(sensCounter);
   sendPacket(pkt);
-
-#if LOGGING
-  Serial.printf("[SENS #%u] V=%.2f I=%.1fmA P=%.0fmW\n",
-    sensCounter - 1, pkt.payload.loadvoltage, pkt.payload.current_mA, pkt.payload.power_mW);
-#endif
 }
 
 
@@ -523,17 +518,23 @@ void setup() {
 
   // --- I2C + INA219 (non-blocking: continues if not found) ---
   Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);
-
-  if (ina219.begin()) {
-    ina219.setCalibration_32V_2A();
-    ina219Available = true;
+  for (int i = 0; i < 10000; i++) {
+    if (ina219Available) {
+      break;
+    }
+    if (ina219.begin()) {
+      ina219.setCalibration_32V_2A();
+      ina219Available = true;
 #if LOGGING
-    Serial.println("INA219: OK");
+      Serial.println("INA219: OK");
 #endif
-  } else {
-    ina219Available = false;
+    } else {
+      ina219Available = false;
+    }
 #if LOGGING
-    Serial.println("INA219: Not found (power stream disabled)");
+  if (!ina219Available) {
+      Serial.println("INA219: Not found (power stream disabled)");
+  }
 #endif
   }
 
