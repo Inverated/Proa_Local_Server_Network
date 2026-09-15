@@ -151,8 +151,8 @@ bool init_ESP_NOW() {
 // =======================
 
 Adafruit_INA219 ina219;
-#define SDA_PIN 0
-#define SCL_PIN 1
+#define SDA_PIN 3
+#define SCL_PIN 4
 
 U8G2_SSD1306_72X40_ER_F_SW_I2C u8g2(U8G2_R0, /* clock=*/6, /* data=*/5, /* reset=*/U8X8_PIN_NONE);
 
