@@ -3,6 +3,18 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import dotenv from 'dotenv';
+import zipMapTiles from "./zip_map_tiles.mjs";
+import extractZip from "./unzip_map_tiles.mjs";
+
+let interrupted = false;
+
+process.on('SIGINT', () => {
+    if (interrupted) {
+        process.exit(130); // Force exit on a second Ctrl+C
+    }
+    interrupted = true;
+    console.log('\nDownload interrupted. Finishing current requests...'); // Zip download will be done in the finally block after all workers finish their current tasks.
+});
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(scriptDirectory, '../.env') });
@@ -106,14 +118,19 @@ async function downloadTile(tile) {
 }
 
 const tiles = [];
-for (let zoom = minZoom; zoom <= maxZoom; zoom += 1) {
-    const minX = longitudeToTile(minLongitude, zoom);
-    const maxX = longitudeToTile(maxLongitude, zoom);
-    const minY = latitudeToTile(maxLatitude, zoom);
-    const maxY = latitudeToTile(minLatitude, zoom);
-    for (let x = minX; x <= maxX; x += 1) {
-        for (let y = minY; y <= maxY; y += 1) {
-            tiles.push({ zoom, x, y });
+populateTiles();
+function populateTiles() {
+    tiles.length = 0; // Clear the array before populating
+
+    for (let zoom = minZoom; zoom <= maxZoom; zoom += 1) {
+        const minX = longitudeToTile(minLongitude, zoom);
+        const maxX = longitudeToTile(maxLongitude, zoom);
+        const minY = latitudeToTile(maxLatitude, zoom);
+        const maxY = latitudeToTile(minLatitude, zoom);
+        for (let x = minX; x <= maxX; x += 1) {
+            for (let y = minY; y <= maxY; y += 1) {
+                tiles.push({ zoom, x, y });
+            }
         }
     }
 }
@@ -123,16 +140,30 @@ let downloaded = 0;
 let processed = 0;
 let lastProgressProcessed = 0;
 
+function getRemainingTime(processed) {
+    const seconds = Math.floor((tiles.length - processed) * (requestDelayMs / concurrency) / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    return `${hours.toString().padStart(2, '0')}:${(minutes % 60).toString().padStart(2, '0')}:${(seconds % 60).toString().padStart(2, '0')}`;
+}
+
 function printProgress() {
     const percentage = tiles.length === 0 ? 100 : Math.floor((processed / tiles.length) * 100);
     const barLength = 30;
     const filledLength = Math.round((percentage / 100) * barLength);
     const progressBar = `${'='.repeat(filledLength)}${'-'.repeat(barLength - filledLength)}`;
-    console.log(`[${progressBar}] ${percentage}% (${processed}/${tiles.length}) - ${downloaded} downloaded`);
+    console.log(`[${progressBar}] ${percentage}% (${processed}/${tiles.length}) - ${downloaded} downloaded - Remaining time: ${getRemainingTime(processed)}`);
 }
 
 async function worker() {
-    while (cursor < tiles.length) {
+    // Extract from zip first then check again
+    populateTiles();
+    if (cursor < tiles.length) {
+        await extractZip();
+        populateTiles();
+    }
+
+    while (!interrupted && cursor < tiles.length) {
         const tile = tiles[cursor];
         cursor += 1;
         const wasDownloaded = await downloadTile(tile);
@@ -147,8 +178,17 @@ async function worker() {
     }
 }
 
-await Promise.all(Array.from({ length: Math.min(concurrency, tiles.length) }, worker));
+try {
+    await Promise.all(Array.from({ length: Math.min(concurrency, tiles.length) }, worker));
+} catch (error) {
+    console.error(`Error during tile download: ${error.message}`);
+} finally {
+    await zipMapTiles();
+}
+
 if (lastProgressProcessed !== processed) {
     printProgress();
 }
+
 console.log(`Map tile bundle ready: ${downloaded} downloaded, ${tiles.length - downloaded} already present, ${tiles.length} total.`);
+
